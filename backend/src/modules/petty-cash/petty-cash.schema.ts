@@ -57,14 +57,28 @@ export const createExpenseSchema = z.object({
     expense_date: z.string().date().optional(),
     amount: z.number().positive(),
     description: z.string().max(1000).optional(),
+    expense_coa_id: z.string().uuid().optional(),
+    // Inventory mode
     product_id: z.string().uuid().optional(),
     product_uom_id: z.string().uuid().optional(),
     warehouse_id: z.string().uuid().optional(),
     qty: z.number().positive().optional(),
     unit_price: z.number().min(0).optional(),
-    expense_coa_id: z.string().uuid().optional(),
-  }),
+    // Asset mode
+    asset_category_id: z.string().uuid().optional(),
+    asset_name: z.string().min(1).max(255).optional(),
+    asset_qty: z.number().int().min(1).optional(),
+    useful_life_months: z.number().int().min(1).optional(),
+    salvage_value: z.number().min(0).optional(),
+  }).refine(
+    (d) => !(d.warehouse_id && d.asset_category_id),
+    { message: 'warehouse_id dan asset_category_id tidak bisa diisi bersamaan', path: ['asset_category_id'] },
+  ).refine(
+    (d) => !d.asset_category_id || !!d.asset_name,
+    { message: 'asset_name wajib diisi jika asset_category_id diset', path: ['asset_name'] },
+  ),
 })
+
 
 export const updateExpenseSchema = z.object({
   params: uuidParam,

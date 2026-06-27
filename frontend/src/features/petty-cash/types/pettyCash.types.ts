@@ -68,6 +68,10 @@ export interface PettyCashExpense {
   settlement_id: string | null
   stock_movement_id: string | null
   receipt_url: string | null
+  fixed_asset_id: string | null
+  asset_code: string | null
+  asset_record_name: string | null
+  asset_status: string | null
   created_at: string
   created_by_name: string | null
 }

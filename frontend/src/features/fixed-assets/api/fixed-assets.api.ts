@@ -308,6 +308,7 @@ export const useCategories = (params?: {
   limit?: number
   search?: string
   is_active?: boolean
+  enabled?: boolean
 }) =>
   useQuery({
     queryKey: KEYS.categories(params),
@@ -326,6 +327,7 @@ export const useCategories = (params?: {
       }
     },
     staleTime: 30_000,
+    enabled: params?.enabled ?? true,
   })
 
 export const useCategory = (id: string) =>

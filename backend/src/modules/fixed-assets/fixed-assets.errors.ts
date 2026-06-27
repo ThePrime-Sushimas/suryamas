@@ -89,3 +89,9 @@ export class DepreciationRunInvalidStatusError extends BusinessRuleError {
 export class CoaNotFoundError extends NotFoundError {
   constructor(code: string) { super(`Chart of account with code '${code}'`) }
 }
+
+export class PooledAssetRevertError extends BusinessRuleError {
+  constructor(assetCode: string, detail: string) {
+    super(`Tidak dapat revert penambahan pool aset ${assetCode}: ${detail}`, { asset_code: assetCode })
+  }
+}

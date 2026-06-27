@@ -76,6 +76,7 @@ export interface PettyCashExpense {
   stock_movement_id: string | null
   settlement_id: string | null
   receipt_url: string | null
+  fixed_asset_id: string | null
   created_at: string
   updated_at: string
   created_by: string | null
@@ -109,12 +110,19 @@ export interface CreateExpenseDto {
   category_id: string
   sub_category_id?: string
   expense_coa_id?: string
+  // Inventory mode
   product_id?: string
   product_uom_id?: string
   qty?: number
   unit_price?: number
   warehouse_id?: string
   receipt_url?: string
+  // Asset mode
+  asset_category_id?: string
+  asset_name?: string
+  asset_qty?: number
+  useful_life_months?: number
+  salvage_value?: number
 }
 
 export interface UpdateExpenseDto {

@@ -10,6 +10,7 @@ import {
   FixedAssetNotFoundError,
   BranchNotFoundError,
   AssetAlreadyActiveError,
+  PooledAssetRevertError,
 } from './fixed-assets.errors'
 import { generateAssetCode } from './asset-code-generator.util'
 import { generateQrCode, generateBulkQrPdf } from './qr-code.util'
@@ -279,6 +280,314 @@ export async function createFromGr(
   await repository.updateQrCode(asset.id, qrCodeUrl, client)
 
   return { ...asset, qr_code_url: qrCodeUrl }
+}
+
+// ─── Create Asset from Petty Cash Expense ────────────────────────────────────
+
+export interface CreateAssetFromPettyCashParams {
+  company_id: string
+  branch_id: string
+  asset_category_id: string
+  asset_name: string
+  acquisition_date: string
+  cost: number
+  qty: number               // 1 for INDIVIDUAL, user-supplied for POOLED
+  useful_life_months?: number
+  salvage_value?: number
+  petty_cash_expense_id: string
+  product_id?: string | null
+  created_by: string
+}
+
+export async function createFromPettyCash(
+  client: PoolClient,
+  params: CreateAssetFromPettyCashParams,
+): Promise<FixedAsset> {
+  const category = await repository.findCategoryById(params.asset_category_id, params.company_id, client)
+  if (!category) throw new AssetCategoryNotFoundError(params.asset_category_id)
+
+  const usefulLife = params.useful_life_months ?? category.default_useful_life_months
+  // salvage_value: use override, else 0 (no percentage field on category, stays simple)
+  const salvageValue = params.salvage_value ?? 0
+
+  // ─── POOLED: merge into existing pool if one exists ──────────────────────────
+  if (category.tracking_method === 'POOLED') {
+    const existingPool = await repository.findPooledAssetByCategory(
+      params.company_id,
+      params.asset_category_id,
+      params.branch_id,
+      client,
+    )
+
+    if (existingPool) {
+      const merged = await repository.mergePooledAsset(
+        existingPool.id,
+        {
+          additional_quantity: params.qty,
+          additional_cost: params.cost,
+          acquisition_date: params.acquisition_date,
+          gr_line_id: null,
+          updated_by: params.created_by,
+        },
+        client,
+      )
+      await repository.createMovement(
+        {
+          company_id: params.company_id,
+          fixed_asset_id: existingPool.id,
+          movement_type: 'COST_ADJUSTMENT',
+          movement_date: params.acquisition_date,
+          from_value: String(existingPool.cost - existingPool.accumulated_depreciation),
+          to_value: String(merged.cost),
+          reference_id: params.petty_cash_expense_id,
+          reference_type: 'petty_cash',
+          notes: `Pool merge from petty cash: +${params.qty} unit, +${params.cost} cost`,
+          created_by: params.created_by,
+        },
+        client,
+      )
+      return merged
+    }
+  }
+
+  // ─── INDIVIDUAL or new POOLED record ─────────────────────────────────────────
+  const branchCode = await repository.findBranchCode(params.branch_id, client)
+  if (!branchCode) throw new BranchNotFoundError(params.branch_id)
+
+  const assetCode = await generateAssetCode(client, params.company_id, category.category_code, branchCode)
+
+  const asset = await repository.createAsset(
+    {
+      company_id: params.company_id,
+      branch_id: params.branch_id,
+      asset_code: assetCode,
+      asset_name: params.asset_name,
+      asset_category_id: params.asset_category_id,
+      product_id: params.product_id ?? null,
+      status: 'DRAFT',
+      acquisition_date: params.acquisition_date,
+      cost: params.cost,
+      salvage_value: salvageValue,
+      useful_life_months: usefulLife,
+      depreciation_method: 'STRAIGHT_LINE',
+      quantity: params.qty,
+      uom: 'unit',
+      gr_line_id: null,
+      created_by: params.created_by,
+    },
+    client,
+  )
+
+  const qrCodeUrl = await generateQrCode(asset.id)
+  await repository.updateQrCode(asset.id, qrCodeUrl, client)
+
+  return { ...asset, qr_code_url: qrCodeUrl }
+}
+
+/**
+ * Activate DRAFT fixed assets linked to petty cash expenses after settlement journal is posted.
+ * Skips assets already ACTIVE (e.g. POOLED merge into existing pool).
+ */
+export async function capitalizeAssetsFromPettyCashSettlement(
+  client: PoolClient,
+  params: {
+    company_id: string
+    request_id: string
+    settlement_id: string
+    journal_id: string
+    capitalized_date: string
+    user_id: string
+  },
+): Promise<void> {
+  const { rows } = await client.query<{ fixed_asset_id: string }>(
+    `SELECT DISTINCT fixed_asset_id
+     FROM petty_cash_expenses
+     WHERE request_id = $1 AND deleted_at IS NULL AND fixed_asset_id IS NOT NULL`,
+    [params.request_id],
+  )
+
+  for (const row of rows) {
+    const asset = await repository.findById(row.fixed_asset_id, params.company_id, client)
+    if (!asset) continue
+
+    if (asset.status !== 'DRAFT') {
+      logInfo('Petty cash settlement: fixed asset skipped (already active)', {
+        asset_id: asset.id,
+        asset_code: asset.asset_code,
+        status: asset.status,
+        request_id: params.request_id,
+      })
+      continue
+    }
+
+    await repository.activateAsset(
+      asset.id,
+      params.company_id,
+      { capitalized_date: params.capitalized_date, updated_by: params.user_id },
+      client,
+    )
+
+    await repository.createMovement(
+      {
+        company_id: params.company_id,
+        fixed_asset_id: asset.id,
+        movement_type: 'CAPITALIZE',
+        movement_date: params.capitalized_date,
+        from_value: 'DRAFT',
+        to_value: 'ACTIVE',
+        reference_id: params.settlement_id,
+        reference_type: 'petty_cash_settlement',
+        notes: 'Kapitalisasi dari settlement kas kecil',
+        created_by: params.user_id,
+      },
+      client,
+    )
+
+    await repository.updateJournalId(asset.id, params.journal_id, client)
+
+    await AuditService.log(
+      'UPDATE',
+      'fixed_asset',
+      asset.id,
+      params.user_id,
+      { status: 'DRAFT' },
+      { status: 'ACTIVE', journal_id: params.journal_id, capitalized_date: params.capitalized_date },
+    )
+  }
+
+  if (rows.length > 0) {
+    logInfo('Petty cash settlement: fixed assets capitalized', {
+      request_id: params.request_id,
+      settlement_id: params.settlement_id,
+      journal_id: params.journal_id,
+    })
+  }
+}
+
+/** Revert DRAFT assets that were activated by a petty cash settlement journal (void flow). */
+export async function revertAssetsCapitalizedByJournal(
+  client: PoolClient,
+  journalId: string,
+  companyId: string,
+  userId: string,
+): Promise<void> {
+  const { rows } = await client.query<{ id: string }>(
+    `SELECT id FROM fixed_assets
+     WHERE journal_id = $1 AND company_id = $2 AND deleted_at IS NULL`,
+    [journalId, companyId],
+  )
+
+  for (const row of rows) {
+    await repository.revertCapitalizationFromJournal(row.id, userId, client)
+  }
+}
+
+/** Revert a single POOLED pool merge from a petty cash expense. Returns true if reverted. */
+export async function revertPooledPettyCashExpense(
+  client: PoolClient,
+  params: {
+    company_id: string
+    expense_id: string
+    fixed_asset_id: string
+    amount: number
+    qty: number | null
+    user_id: string
+    revert_reference_type: 'petty_cash_void' | 'petty_cash_delete'
+    revert_notes: string
+  },
+): Promise<boolean> {
+  const { rows: movements } = await client.query<{ id: string }>(
+    `SELECT id FROM asset_movements
+     WHERE fixed_asset_id = $1 AND company_id = $2
+       AND movement_type = 'COST_ADJUSTMENT'
+       AND reference_type = 'petty_cash' AND reference_id = $3`,
+    [params.fixed_asset_id, params.company_id, params.expense_id],
+  )
+  if (movements.length === 0) return false
+
+  const asset = await repository.findById(params.fixed_asset_id, params.company_id, client)
+  if (!asset) {
+    throw new FixedAssetNotFoundError(params.fixed_asset_id)
+  }
+
+  const additionalQty = params.qty != null && params.qty > 0 ? Number(params.qty) : 1
+  const additionalCost = Number(params.amount)
+
+  if (asset.quantity < additionalQty || asset.cost < additionalCost) {
+    throw new PooledAssetRevertError(
+      asset.asset_code,
+      'qty atau cost pool tidak cukup untuk di-revert (kemungkinan sudah disesuaikan setelah settlement)',
+    )
+  }
+
+  const bookValueBefore = asset.cost - asset.accumulated_depreciation
+  const newCost = asset.cost - additionalCost
+  const newQty = asset.quantity - additionalQty
+
+  await client.query(
+    `UPDATE fixed_assets
+     SET quantity = $1, cost = $2, updated_by = $3, updated_at = now()
+     WHERE id = $4 AND company_id = $5`,
+    [newQty, newCost, params.user_id, asset.id, params.company_id],
+  )
+
+  await repository.createMovement(
+    {
+      company_id: params.company_id,
+      fixed_asset_id: asset.id,
+      movement_type: 'COST_ADJUSTMENT',
+      movement_date: new Date().toISOString().slice(0, 10),
+      from_value: String(bookValueBefore),
+      to_value: String(newCost - asset.accumulated_depreciation),
+      reference_id: params.expense_id,
+      reference_type: params.revert_reference_type,
+      notes: params.revert_notes,
+      created_by: params.user_id,
+    },
+    client,
+  )
+
+  await client.query(
+    `DELETE FROM asset_movements
+     WHERE fixed_asset_id = $1 AND reference_type = 'petty_cash' AND reference_id = $2`,
+    [asset.id, params.expense_id],
+  )
+
+  return true
+}
+
+/**
+ * Reverse POOLED asset cost/qty merges from petty cash expenses (void settlement).
+ * INDIVIDUAL / new-pool DRAFT assets are handled by revertAssetsCapitalizedByJournal.
+ */
+export async function revertPooledPettyCashAdjustmentsForRequest(
+  client: PoolClient,
+  params: { company_id: string; request_id: string; user_id: string },
+): Promise<void> {
+  const { rows: expenses } = await client.query<{
+    id: string
+    fixed_asset_id: string
+    amount: string
+    qty: string | null
+  }>(
+    `SELECT e.id, e.fixed_asset_id, e.amount, e.qty
+     FROM petty_cash_expenses e
+     WHERE e.request_id = $1 AND e.deleted_at IS NULL AND e.fixed_asset_id IS NOT NULL`,
+    [params.request_id],
+  )
+
+  for (const expense of expenses) {
+    await revertPooledPettyCashExpense(client, {
+      company_id: params.company_id,
+      expense_id: expense.id,
+      fixed_asset_id: expense.fixed_asset_id,
+      amount: Number(expense.amount),
+      qty: expense.qty != null ? Number(expense.qty) : null,
+      user_id: params.user_id,
+      revert_reference_type: 'petty_cash_void',
+      revert_notes: `Revert pool merge dari void settlement kas kecil: -${expense.qty != null && Number(expense.qty) > 0 ? expense.qty : 1} unit, -${expense.amount} cost`,
+    })
+  }
 }
 
 // ─── Asset List / Detail ─────────────────────────────────────────────────────

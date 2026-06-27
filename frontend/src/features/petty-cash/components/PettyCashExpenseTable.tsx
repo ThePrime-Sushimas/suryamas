@@ -1,4 +1,5 @@
-import { Trash2, Pencil } from "lucide-react";
+import { Trash2, Pencil, ExternalLink } from "lucide-react";
+import { Link } from "react-router-dom";
 import type {
   PettyCashExpense,
   PettyCashRequestStatus,
@@ -78,6 +79,9 @@ export function PettyCashExpenseTable({
                 <th className="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-300">
                   Gudang
                 </th>
+                <th className="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-300">
+                  Fixed Asset
+                </th>
                 {canAct && (
                   <th className="px-3 py-2 text-center font-medium text-gray-600 dark:text-gray-300">
                     Aksi
@@ -146,6 +150,19 @@ export function PettyCashExpenseTable({
                   <td className="px-3 py-2 text-gray-700 dark:text-gray-300 text-xs">
                     {e.warehouse_name || "—"}
                   </td>
+                  <td className="px-3 py-2 text-xs">
+                    {e.fixed_asset_id ? (
+                      <Link
+                        to={`/fixed-assets/${e.fixed_asset_id}`}
+                        className="inline-flex items-center gap-1 font-medium text-blue-600 hover:underline dark:text-blue-400"
+                      >
+                        {e.asset_code || "Aset"}
+                        <ExternalLink className="w-3 h-3" />
+                      </Link>
+                    ) : (
+                      <span className="text-gray-400">—</span>
+                    )}
+                  </td>
                   {canAct && (
                     <td className="px-3 py-2 text-center">
                       {!e.settlement_id && (
@@ -185,7 +202,7 @@ export function PettyCashExpenseTable({
                       expenses.reduce((sum, e) => sum + e.amount, 0),
                     )}
                   </td>
-                  <td colSpan={canAct ? 3 : 2}></td>
+                  <td colSpan={canAct ? 4 : 3}></td>
                 </tr>
               </tfoot>
             )}
@@ -195,3 +212,4 @@ export function PettyCashExpenseTable({
     </div>
   );
 }
+

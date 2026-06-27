@@ -8,6 +8,8 @@ import { stockRepository } from '../stock/stock.repository'
 import { getCompanyIdForBranch, requireBranchAccess } from '../../utils/branch-access.util'
 import { pettyCashRepository } from './petty-cash.repository'
 import { productUomsRepository } from '../product-uoms/product-uoms.repository'
+import { createFromPettyCash, capitalizeAssetsFromPettyCashSettlement, revertAssetsCapitalizedByJournal, revertPooledPettyCashAdjustmentsForRequest, revertPooledPettyCashExpense } from '../fixed-assets/fixed-assets.service'
+import { findCategoryById as findAssetCategoryById, hardDeleteAssetById } from '../fixed-assets/fixed-assets.repository'
 import type { PettyCashRequest, PettyCashExpense, PettyCashSettlement, CreateRequestDto, ApproveRequestDto, RejectRequestDto, CreateExpenseDto, UpdateExpenseDto, CreateSettlementDto, VoidSettlementDto } from './petty-cash.types'
 import {
   PettyCashRequestNotFoundError,
@@ -26,7 +28,59 @@ import {
   PettyCashSettlementNotFoundError,
   PettyCashVoidBlockedByExpenseError,
   PettyCashVoidBlockedByRefillError,
+  PettyCashAssetFieldsRequiredError,
+  PettyCashAssetActiveBlockDeleteError,
 } from './petty-cash.errors'
+
+import type { PoolClient } from 'pg'
+
+/** Resolve debit COA for a petty cash expense line. */
+async function resolveExpenseCoaId(
+  client: PoolClient,
+  companyId: string,
+  input: {
+    expense_coa_id?: string | null
+    asset_category_id?: string | null
+    category_default_coa_id?: string | null
+    product_id?: string | null
+    warehouse_id?: string | null
+  },
+): Promise<string> {
+  // Asset expenses: COA must come from asset category (ignore expense_coa_id override)
+  if (input.asset_category_id) {
+    const assetCategory = await findAssetCategoryById(input.asset_category_id, companyId, client)
+    if (!assetCategory) {
+      throw new PettyCashCoaMissingError(`asset_category_id (${input.asset_category_id}) tidak ditemukan`)
+    }
+    if (!assetCategory.asset_coa_id) {
+      throw new PettyCashCoaMissingError(`Kategori aset '${assetCategory.category_name}' belum memiliki COA aset`)
+    }
+    return assetCategory.asset_coa_id
+  }
+
+  if (input.expense_coa_id) {
+    const coaValid = await pettyCashRepository.coaExistsForCompany(input.expense_coa_id, companyId, client)
+    if (!coaValid) {
+      throw new PettyCashCoaMissingError(`expense_coa_id (${input.expense_coa_id}) tidak ditemukan atau tidak aktif`)
+    }
+    return input.expense_coa_id
+  }
+
+  if (input.category_default_coa_id) {
+    return input.category_default_coa_id
+  }
+
+  const isInventoryPurchase = !!(input.product_id && input.warehouse_id)
+  const purposeCode = isInventoryPurchase ? 'PUR-INV' : 'CSH-OUT'
+  const coaId = await pettyCashRepository.findDebitCoaByPurposeCode(client, purposeCode, companyId)
+  if (!coaId) {
+    throw new PettyCashCoaMissingError(
+      `DEBIT account untuk purpose '${purposeCode}' belum ter-mapping di company ini`,
+    )
+  }
+  return coaId
+}
+
 
 export class PettyCashService {
   // ─── LIST & GET ──────────────────────────────────────────────────────────────
@@ -326,6 +380,13 @@ export class PettyCashService {
         throw new PettyCashInventoryFieldsRequiredError(missing)
       }
     }
+    if (dto.asset_category_id) {
+      const missing: string[] = []
+      if (!dto.asset_name) missing.push('asset_name')
+      if (missing.length > 0) {
+        throw new PettyCashAssetFieldsRequiredError(missing)
+      }
+    }
 
     // All authoritative checks + insert inside transaction
     const expense = await pettyCashRepository.withTransaction(async (client) => {
@@ -352,31 +413,18 @@ export class PettyCashService {
       }
 
       // 4. Resolve expense_coa_id
-      // Priority: user override > category.default_coa_id > purpose-based fallback
-      let resolvedCoaId: string
-      if (dto.expense_coa_id) {
-        // User override — validate exists
-        const coaValid = await pettyCashRepository.coaExistsForCompany(dto.expense_coa_id, companyId, client)
-        if (!coaValid) {
-          throw new PettyCashCoaMissingError(`expense_coa_id (${dto.expense_coa_id}) tidak ditemukan atau tidak aktif`)
-        }
-        resolvedCoaId = dto.expense_coa_id
-      } else if (category.default_coa_id) {
-        // Category has its own default COA (e.g. Transport → 610401)
-        resolvedCoaId = category.default_coa_id
-      } else {
-        // Fallback: resolve from accounting purpose
-        const purposeCode = dto.product_id ? 'PUR-INV' : 'CSH-OUT'
-        const coaId = await pettyCashRepository.findDebitCoaByPurposeCode(client, purposeCode, companyId)
-        if (!coaId) {
-          throw new PettyCashCoaMissingError(
-            `DEBIT account untuk purpose '${purposeCode}' belum ter-mapping di company ini`,
-          )
-        }
-        resolvedCoaId = coaId
-      }
+      // Priority: user override > asset category COA > expense category default > purpose fallback
+      const resolvedCoaId = await resolveExpenseCoaId(client, companyId, {
+        expense_coa_id: dto.expense_coa_id,
+        asset_category_id: dto.asset_category_id,
+        category_default_coa_id: category.default_coa_id,
+        product_id: dto.product_id,
+        warehouse_id: dto.warehouse_id,
+      })
 
       // 5. Insert expense
+      let createdAssetId: string | null = null
+
       const newExpense = await pettyCashRepository.createExpense(client, {
         request_id: requestId,
         company_id: companyId,
@@ -396,7 +444,27 @@ export class PettyCashService {
         created_by: userId,
       })
 
-      // 6. Stock movement — realtime (Option B: stock immediate, journal at settlement)
+      // 6a. Asset acquisition — realtime
+      if (dto.asset_category_id && dto.asset_name) {
+        const asset = await createFromPettyCash(client, {
+          company_id: companyId,
+          branch_id: lockedRequest.branch_id,
+          asset_category_id: dto.asset_category_id,
+          asset_name: dto.asset_name,
+          acquisition_date: dto.expense_date ?? new Date().toISOString().slice(0, 10),
+          cost: dto.amount,
+          qty: dto.asset_qty ?? 1,
+          useful_life_months: dto.useful_life_months,
+          salvage_value: dto.salvage_value,
+          petty_cash_expense_id: newExpense.id,
+          product_id: dto.product_id ?? null,
+          created_by: userId,
+        })
+        createdAssetId = asset.id
+        await pettyCashRepository.updateExpense(client, newExpense.id, { fixed_asset_id: asset.id }, userId)
+      }
+
+      // 6b. Stock movement — realtime (Option B: stock immediate, journal at settlement)
       if (dto.product_id && dto.warehouse_id && dto.qty && dto.qty > 0) {
         let conversionFactor = 1
         if (dto.product_uom_id) {
@@ -436,8 +504,9 @@ export class PettyCashService {
         await pettyCashRepository.updateExpenseStockMovementId(client, newExpense.id, movement.id)
       }
 
-      return newExpense
+      return { ...newExpense, fixed_asset_id: createdAssetId }
     })
+
 
     await AuditService.log('CREATE', 'petty_cash_expenses', expense.id, userId, undefined, {
       request_id: requestId,
@@ -472,17 +541,6 @@ export class PettyCashService {
     }
 
     const companyId = request.company_id
-
-    // Determine affects_inventory for effective category
-    let affectsInventory = false
-    if (dto.category_id) {
-      const cat = await pettyCashRepository.findCategoryWithInventoryFlag(dto.category_id)
-      if (!cat) throw new PettyCashCoaMissingError(`category_id (${dto.category_id}) tidak ditemukan`)
-      affectsInventory = cat.affects_inventory
-    } else {
-      const cat = await pettyCashRepository.findCategoryWithInventoryFlag(expense.category_id)
-      affectsInventory = cat?.affects_inventory ?? false
-    }
 
     const effectiveWarehouseId = dto.warehouse_id !== undefined ? dto.warehouse_id : expense.warehouse_id
     if (effectiveWarehouseId) {
@@ -523,22 +581,37 @@ export class PettyCashService {
         }
       }
 
-      // Resolve COA if category changed or expense_coa_id overridden
+      // Resolve COA when relevant fields change
       let resolvedCoaId: string | undefined
-      if (dto.expense_coa_id) {
-        const coaValid = await pettyCashRepository.coaExistsForCompany(dto.expense_coa_id, companyId, client)
-        if (!coaValid) {
-          throw new PettyCashCoaMissingError(`expense_coa_id (${dto.expense_coa_id}) tidak ditemukan atau tidak aktif`)
+      const coaInputsChanged =
+        dto.expense_coa_id !== undefined
+        || (dto.category_id !== undefined && dto.category_id !== expense.category_id)
+        || dto.product_id !== undefined
+        || dto.warehouse_id !== undefined
+
+      if (coaInputsChanged) {
+        const effectiveCategoryId = dto.category_id ?? expense.category_id
+        const categoryMeta = await pettyCashRepository.findCategoryWithInventoryFlag(effectiveCategoryId, client)
+        if (!categoryMeta) {
+          throw new PettyCashCoaMissingError(`category_id (${effectiveCategoryId}) tidak ditemukan`)
         }
-        resolvedCoaId = dto.expense_coa_id
-      } else if (dto.category_id && dto.category_id !== expense.category_id) {
-        // Category changed — re-resolve COA
-        const purposeCode = affectsInventory ? 'PUR-INV' : 'CSH-OUT'
-        const coaId = await pettyCashRepository.findDebitCoaByPurposeCode(client, purposeCode, companyId)
-        if (!coaId) {
-          throw new PettyCashCoaMissingError(`DEBIT account untuk purpose '${purposeCode}' belum ter-mapping`)
+
+        let assetCategoryId: string | null = null
+        if (expense.fixed_asset_id) {
+          const { rows } = await client.query<{ asset_category_id: string }>(
+            'SELECT asset_category_id FROM fixed_assets WHERE id = $1',
+            [expense.fixed_asset_id],
+          )
+          assetCategoryId = rows[0]?.asset_category_id ?? null
         }
-        resolvedCoaId = coaId
+
+        resolvedCoaId = await resolveExpenseCoaId(client, companyId, {
+          expense_coa_id: dto.expense_coa_id,
+          asset_category_id: assetCategoryId,
+          category_default_coa_id: categoryMeta?.default_coa_id ?? null,
+          product_id: dto.product_id !== undefined ? dto.product_id : expense.product_id,
+          warehouse_id: dto.warehouse_id !== undefined ? dto.warehouse_id : expense.warehouse_id,
+        })
       }
 
       // Build update payload (only changed fields)
@@ -678,6 +751,50 @@ export class PettyCashService {
     }
 
     await pettyCashRepository.withTransaction(async (client) => {
+      const companyId = request.company_id
+
+      if (expense.fixed_asset_id) {
+        const revertQty = expense.qty != null && expense.qty > 0 ? expense.qty : 1
+
+        const pooledReverted = await revertPooledPettyCashExpense(client, {
+          company_id: companyId,
+          expense_id: expenseId,
+          fixed_asset_id: expense.fixed_asset_id,
+          amount: expense.amount,
+          qty: expense.qty,
+          user_id: userId,
+          revert_reference_type: 'petty_cash_delete',
+          revert_notes: `Revert pool merge dari hapus expense kas kecil: -${revertQty} unit, -${expense.amount} cost`,
+        })
+
+        if (pooledReverted) {
+          await pettyCashRepository.updateExpense(client, expenseId, { fixed_asset_id: null }, userId)
+        } else {
+          // Single fetch after pooled check — INDIVIDUAL / new-pool DRAFT path
+          const { rows } = await client.query<{ id: string; asset_code: string; status: string }>(
+            `SELECT id, asset_code, status FROM fixed_assets
+             WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL
+             FOR UPDATE`,
+            [expense.fixed_asset_id, companyId],
+          )
+          const asset = rows[0]
+
+          if (!asset) {
+            // Defensive: expense still references an asset that no longer exists
+            logInfo('Petty cash delete: clearing orphan fixed_asset_id', {
+              expense_id: expenseId,
+              fixed_asset_id: expense.fixed_asset_id,
+            })
+            await pettyCashRepository.updateExpense(client, expenseId, { fixed_asset_id: null }, userId)
+          } else if (asset.status !== 'DRAFT') {
+            throw new PettyCashAssetActiveBlockDeleteError(asset.asset_code)
+          } else {
+            await pettyCashRepository.updateExpense(client, expenseId, { fixed_asset_id: null }, userId)
+            await hardDeleteAssetById(asset.id, client)
+          }
+        }
+      }
+
       // Reverse stock movement if exists
       if (expense.stock_movement_id) {
         const movement = await pettyCashRepository.findStockMovementById(client, expense.stock_movement_id)
@@ -706,6 +823,7 @@ export class PettyCashService {
 
       await pettyCashRepository.softDeleteExpense(expenseId, userId, client)
     })
+
 
     await AuditService.log('DELETE', 'petty_cash_expenses', expenseId, userId, {
       amount: expense.amount,
@@ -869,6 +987,16 @@ export class PettyCashService {
       await journalHeadersService.approveAsUser(journal.id, userId, client)
       await journalHeadersService.postAsUser(journal.id, userId, client)
 
+      // ── STEP 6b — Capitalize linked fixed assets (DRAFT → ACTIVE) ───────────
+      await capitalizeAssetsFromPettyCashSettlement(client, {
+        company_id: companyId,
+        request_id: requestId,
+        settlement_id: settlementRow.id,
+        journal_id: journal.id,
+        capitalized_date: settlementDate,
+        user_id: userId,
+      })
+
       // ── STEP 7 — Link expenses to settlement ─────────────────────────────
       // Note: Stock movements already created per-expense at input time (Option B).
       // Settlement only handles journal + close.
@@ -1025,8 +1153,15 @@ export class PettyCashService {
       // After void, request returns to DISBURSED — expenses (and their stock) remain active.
       // Stock only gets reversed if user explicitly deletes an expense.
 
-      // ── STEP 3 — Reverse settlement journal ───────────────────────────────
+      // ── STEP 3 — Revert fixed asset effects from this settlement ─────────
+      await revertPooledPettyCashAdjustmentsForRequest(client, {
+        company_id: settlement.company_id,
+        request_id: settlement.request_id,
+        user_id: userId,
+      })
+
       if (settlement.journal_id) {
+        await revertAssetsCapitalizedByJournal(client, settlement.journal_id, settlement.company_id, userId)
         await journalHeadersService.reverseAsUser(
           settlement.journal_id,
           `Void settlement: ${dto.reason}`,

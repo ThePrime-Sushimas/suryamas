@@ -635,7 +635,7 @@ export async function createAsset(
     asset_code: string
     asset_name: string
     asset_category_id: string
-    product_id: string
+    product_id: string | null
     status: string
     acquisition_date: string
     cost: number
@@ -644,7 +644,7 @@ export async function createAsset(
     depreciation_method: string
     quantity?: number
     uom?: string
-    gr_line_id: string
+    gr_line_id: string | null
     qr_code_url?: string | null
     created_by?: string | null
   },
@@ -1585,8 +1585,34 @@ export async function findPooledAsset(
   return rows[0] ?? null
 }
 
+export async function findPooledAssetByCategory(
+  companyId: string,
+  assetCategoryId: string,
+  branchId: string,
+  client?: PoolClient,
+): Promise<FixedAsset | null> {
+  const db = client ?? pool
+  const { rows } = await db.query<FixedAsset>(
+    `SELECT fa.*
+     FROM fixed_assets fa
+     JOIN asset_categories ac ON ac.id = fa.asset_category_id
+     WHERE fa.company_id = $1
+       AND fa.asset_category_id = $2
+       AND fa.branch_id = $3
+       AND ac.tracking_method = 'POOLED'
+       AND fa.status IN ('DRAFT', 'ACTIVE')
+       AND fa.deleted_at IS NULL
+     ORDER BY fa.created_at DESC
+     LIMIT 1`,
+    [companyId, assetCategoryId, branchId],
+  )
+  return rows[0] ?? null
+}
+
+
 /**
  * Merge incoming GR into an existing pooled asset record.
+
  * new_cost = current_book_value + incoming_cost
  * quantity += incoming_quantity
  * accumulated_depreciation = 0 (reset basis)
@@ -1598,7 +1624,7 @@ export async function mergePooledAsset(
     additional_quantity: number
     additional_cost: number
     acquisition_date: string
-    gr_line_id: string
+    gr_line_id: string | null
     updated_by: string
   },
   client?: PoolClient,
@@ -1832,6 +1858,14 @@ export async function hardDeleteAssetByJournalId(journalId: string, client?: Poo
     ownClient.release()
   }
 }
+
+export async function hardDeleteAssetById(assetId: string, client?: PoolClient): Promise<void> {
+  const db = client ?? pool
+  await db.query(`DELETE FROM asset_movements WHERE fixed_asset_id = $1`, [assetId])
+  await db.query(`DELETE FROM asset_photos WHERE fixed_asset_id = $1`, [assetId])
+  await db.query(`DELETE FROM fixed_assets WHERE id = $1`, [assetId])
+}
+
 
 /**
  * Check if a fixed asset has any depreciation entries from POSTED runs.

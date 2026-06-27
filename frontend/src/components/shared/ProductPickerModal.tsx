@@ -14,6 +14,7 @@ export interface PickedProduct {
   uom_base: string
   category_id: string | null
   category_name: string | null
+  asset_category_id: string | null
   average_cost: number
   affects_inventory: boolean
 }
@@ -48,6 +49,7 @@ interface ProductRow {
   base_unit_name: string | null
   category_id: string | null
   category_name: string | null
+  asset_category_id: string | null
   average_cost: number
   affects_inventory: boolean
 }
@@ -212,6 +214,7 @@ export function ProductPickerModal({
       uom_base: product.base_unit_name ?? 'pcs',
       category_id: product.category_id,
       category_name: product.category_name,
+      asset_category_id: product.asset_category_id ?? null,
       average_cost: product.average_cost ?? 0,
       affects_inventory: product.affects_inventory ?? false,
     }

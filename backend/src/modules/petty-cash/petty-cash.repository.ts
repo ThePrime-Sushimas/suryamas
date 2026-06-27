@@ -296,6 +296,7 @@ export class PettyCashRepository {
       unit_price?: number | null
       warehouse_id?: string | null
       receipt_url?: string | null
+      fixed_asset_id?: string | null
       created_by: string
     },
   ): Promise<PettyCashExpense> {
@@ -304,8 +305,8 @@ export class PettyCashRepository {
         (request_id, company_id, branch_id, expense_date, amount, description,
          category_id, sub_category_id, expense_coa_id,
          product_id, product_uom_id, qty, unit_price, warehouse_id,
-         receipt_url, created_by, updated_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $16)
+         receipt_url, fixed_asset_id, created_by, updated_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $17)
        RETURNING *`,
       [
         data.request_id,
@@ -323,9 +324,11 @@ export class PettyCashRepository {
         data.unit_price ?? null,
         data.warehouse_id ?? null,
         data.receipt_url ?? null,
+        data.fixed_asset_id ?? null,
         data.created_by,
       ],
     )
+
     return rows[0]
   }
 
@@ -755,11 +758,13 @@ export class PettyCashRepository {
          selected_uom.unit_name AS product_uom_name,
          coa_e.account_name AS expense_coa_name,
          w.warehouse_name,
+         fa.asset_code, fa.asset_name AS asset_record_name, fa.status AS asset_status,
          e_cre.full_name AS created_by_name
        FROM petty_cash_expenses e
        JOIN categories c ON c.id = e.category_id
        LEFT JOIN sub_categories sc ON sc.id = e.sub_category_id
        LEFT JOIN products p ON p.id = e.product_id
+       LEFT JOIN fixed_assets fa ON fa.id = e.fixed_asset_id
        LEFT JOIN LATERAL (
          SELECT mu.unit_name FROM product_uoms pu
          JOIN metric_units mu ON mu.id = pu.metric_unit_id
@@ -782,6 +787,7 @@ export class PettyCashRepository {
 
     return { ...headerRows[0], expenses }
   }
+
 
   async findExpensesByRequestId(
     requestId: string,

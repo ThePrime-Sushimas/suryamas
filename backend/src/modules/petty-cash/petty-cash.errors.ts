@@ -123,3 +123,21 @@ export class PettyCashVoidBlockedByRefillError extends BusinessRuleError {
     )
   }
 }
+
+export class PettyCashAssetFieldsRequiredError extends BusinessRuleError {
+  constructor(missingFields: string[]) {
+    super(
+      `Mode asset — field berikut wajib diisi: ${missingFields.join(', ')}`,
+      { missing_fields: missingFields },
+    )
+  }
+}
+
+export class PettyCashAssetActiveBlockDeleteError extends BusinessRuleError {
+  constructor(assetCode: string) {
+    super(
+      `Aset (${assetCode}) sudah tidak DRAFT (aktivasi manual atau settlement). Expense tidak dapat dihapus — void settlement atau hapus aset lewat modul Fixed Asset jika input salah.`,
+      { asset_code: assetCode },
+    )
+  }
+}

@@ -123,6 +123,11 @@ export const useCreateExpense = () => {
       qty?: number
       unit_price?: number
       expense_coa_id?: string
+      asset_category_id?: string
+      asset_name?: string
+      asset_qty?: number
+      useful_life_months?: number
+      salvage_value?: number
     }) => {
       const { data } = await api.post(`/petty-cash/${requestId}/expenses`, dto)
       return data.data as PettyCashExpense
