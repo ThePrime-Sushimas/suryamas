@@ -272,26 +272,28 @@ export function PettyCashExpenseFormModal({ open, onClose, requestId }: PettyCas
                     </button>
                   )}
                 </div>
+                {/* Kategori Pengeluaran */}
                 <div>
                   <label className="block text-xs font-medium text-gray-500 mb-1">Kategori Pengeluaran *</label>
-                  <select value={expenseForm.category_id} onChange={(e) => setExpenseForm(f => ({ ...f, category_id: e.target.value, sub_category_id: '' }))} className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm">
-                    <option value="">Pilih kategori pengeluaran</option>
+                  <select
+                    value={expenseForm.category_id}
+                    disabled
+                    className="w-full px-3 py-2 rounded-lg border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-sm text-gray-500 dark:text-gray-400 cursor-not-allowed"
+                  >
+                    <option value="">—</option>
                     {categories.map(c => <option key={c.id} value={c.id}>{c.category_code} — {c.category_name}</option>)}
                   </select>
                 </div>
+
+                {/* Kategori Aset */}
                 <div>
                   <label className="block text-xs font-medium text-gray-500 mb-1">Kategori Aset (Fixed Asset) *</label>
-                  <select value={expenseForm.asset_category_id} onChange={(e) => {
-                    const catId = e.target.value
-                    const cat = assetCategories.find(c => c.id === catId)
-                    setExpenseForm(f => ({
-                      ...f,
-                      asset_category_id: catId,
-                      expense_coa_id: cat?.asset_coa_id ?? '',
-                      asset_qty: cat?.tracking_method === 'POOLED' ? f.asset_qty : '1',
-                    }))
-                  }} className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm">
-                    <option value="">Pilih kategori aset</option>
+                  <select
+                    value={expenseForm.asset_category_id}
+                    disabled
+                    className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 text-sm text-gray-500 dark:text-gray-400 cursor-not-allowed"
+                  >
+                    <option value="">—</option>
                     {assetCategories.map(ac => <option key={ac.id} value={ac.id}>{ac.category_code} — {ac.category_name} ({ac.tracking_method})</option>)}
                   </select>
                 </div>
