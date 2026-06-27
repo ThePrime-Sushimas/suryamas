@@ -75,6 +75,9 @@ export function PettyCashExpenseTable({
                 <th className="px-3 py-2 text-center font-medium text-gray-600 dark:text-gray-300">
                   Masuk Inventory
                 </th>
+                <th className="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-300">
+                  Gudang
+                </th>
                 {canAct && (
                   <th className="px-3 py-2 text-center font-medium text-gray-600 dark:text-gray-300">
                     Aksi
@@ -140,6 +143,9 @@ export function PettyCashExpenseTable({
                       <span className="text-gray-400">—</span>
                     )}
                   </td>
+                  <td className="px-3 py-2 text-gray-700 dark:text-gray-300 text-xs">
+                    {e.warehouse_name || "—"}
+                  </td>
                   {canAct && (
                     <td className="px-3 py-2 text-center">
                       {!e.settlement_id && (
@@ -179,7 +185,7 @@ export function PettyCashExpenseTable({
                       expenses.reduce((sum, e) => sum + e.amount, 0),
                     )}
                   </td>
-                  <td colSpan={canAct ? 2 : 1}></td>
+                  <td colSpan={canAct ? 3 : 2}></td>
                 </tr>
               </tfoot>
             )}
