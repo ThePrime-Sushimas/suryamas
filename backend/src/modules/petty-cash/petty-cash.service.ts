@@ -7,6 +7,7 @@ import { journalHeadersService } from '../accounting/journals/journal-headers/jo
 import { stockRepository } from '../stock/stock.repository'
 import { getCompanyIdForBranch, requireBranchAccess } from '../../utils/branch-access.util'
 import { pettyCashRepository } from './petty-cash.repository'
+import { productUomsRepository } from '../product-uoms/product-uoms.repository'
 import type { PettyCashRequest, PettyCashExpense, PettyCashSettlement, CreateRequestDto, ApproveRequestDto, RejectRequestDto, CreateExpenseDto, UpdateExpenseDto, CreateSettlementDto, VoidSettlementDto } from './petty-cash.types'
 import {
   PettyCashRequestNotFoundError,
@@ -397,9 +398,17 @@ export class PettyCashService {
 
       // 6. Stock movement — realtime (Option B: stock immediate, journal at settlement)
       if (dto.product_id && dto.warehouse_id && dto.qty && dto.qty > 0) {
-        const qty = dto.qty
+        let conversionFactor = 1
+        if (dto.product_uom_id) {
+          const uom = await productUomsRepository.findById(dto.product_uom_id)
+          if (uom) {
+            conversionFactor = Number(uom.conversion_factor) || 1
+          }
+        }
+
+        const qty = dto.qty * conversionFactor
         const costPerUnit = dto.unit_price != null && dto.unit_price > 0
-          ? dto.unit_price
+          ? dto.unit_price / conversionFactor
           : (qty > 0 ? dto.amount / qty : dto.amount)
 
         const balance = await stockRepository.getBalanceForUpdate(client, dto.warehouse_id, dto.product_id)
@@ -599,10 +608,19 @@ export class PettyCashService {
 
       // Create new movement if should have one AND (didn't have before OR fields changed)
       if (shouldHaveMovement && (!hadMovement || inventoryFieldsChanged)) {
-        const qty = effectiveQty!
+        let conversionFactor = 1
+        const effectiveProductUomId = dto.product_uom_id !== undefined ? dto.product_uom_id : expense.product_uom_id
+        if (effectiveProductUomId) {
+          const uom = await productUomsRepository.findById(effectiveProductUomId)
+          if (uom) {
+            conversionFactor = Number(uom.conversion_factor) || 1
+          }
+        }
+
+        const qty = effectiveQty! * conversionFactor
         // Priority: explicit unit_price > derived from amount/qty
         const costPerUnit = effectiveUnitPrice != null && effectiveUnitPrice > 0
-          ? effectiveUnitPrice
+          ? effectiveUnitPrice / conversionFactor
           : (qty > 0 ? effectiveAmount / qty : effectiveAmount)
 
         const balance = await stockRepository.getBalanceForUpdate(client, effectiveWarehouseId!, effectiveProductId!)

@@ -55,6 +55,8 @@ export interface PettyCashExpense {
   product_id: string | null
   product_name: string | null
   product_code: string | null
+  product_uom_id: string | null
+  product_uom_name: string | null
   base_unit_name: string | null
   warehouse_id: string | null
   warehouse_name: string | null

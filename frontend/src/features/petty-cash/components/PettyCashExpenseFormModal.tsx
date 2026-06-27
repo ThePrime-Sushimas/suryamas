@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { X, Loader2, Camera } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
@@ -6,6 +6,7 @@ import { useCategories, useSubCategories } from '@/features/categories/api/categ
 import { useWarehouses } from '@/features/inventory/api/inventory.api'
 import { useCreateExpense, useUploadPettyCashReceipt } from '../api/pettyCash.api'
 import { ProductPickerModal } from '@/components/shared/ProductPickerModal'
+import { useProductUoms } from '@/features/product-uoms/api/productUoms.api'
 
 interface PettyCashExpenseFormModalProps {
   open: boolean
@@ -21,6 +22,26 @@ export function PettyCashExpenseFormModal({ open, onClose, requestId }: PettyCas
     amount: '', description: '', product_id: '', warehouse_id: '', qty: '', unit_price: '',
   })
   const [selectedProduct, setSelectedProduct] = useState<{ id: string; product_name: string; affects_inventory: boolean; uom: string } | null>(null)
+  const [selectedUomId, setSelectedUomId] = useState<string>('')
+  const { data: uoms = [] } = useProductUoms(selectedProduct?.id ?? '', false)
+
+  useEffect(() => {
+    if (uoms.length > 0) {
+      const defaultUom = uoms.find(u => u.is_default_purchase_unit) || uoms.find(u => u.is_base_unit) || uoms[0]
+      if (defaultUom) {
+        setSelectedUomId(defaultUom.id)
+      }
+    } else {
+      setSelectedUomId('')
+    }
+  }, [uoms])
+
+  const activeUom = uoms.find(u => u.id === selectedUomId)
+  const uomName = activeUom?.metric_units?.unit_name ?? selectedProduct?.uom ?? 'pcs'
+  const conversionFactor = activeUom?.conversion_factor ?? 1
+  const baseUom = uoms.find(u => u.is_base_unit) || uoms.find(u => u.conversion_factor === 1)
+  const baseUomName = baseUom?.metric_units?.unit_name ?? 'pcs'
+
   const [expenseMode, setExpenseMode] = useState<'product' | 'operational'>('product')
   const [showProductPicker, setShowProductPicker] = useState(false)
   const [trackInventory, setTrackInventory] = useState(false)
@@ -39,6 +60,7 @@ export function PettyCashExpenseFormModal({ open, onClose, requestId }: PettyCas
   const resetForm = () => {
     setExpenseForm({ category_id: '', sub_category_id: '', expense_date: new Date().toISOString().slice(0, 10), amount: '', description: '', product_id: '', warehouse_id: '', qty: '', unit_price: '' })
     setSelectedProduct(null)
+    setSelectedUomId('')
     setExpenseMode('product')
     setTrackInventory(false)
     setReceiptFile(null)
@@ -71,6 +93,7 @@ export function PettyCashExpenseFormModal({ open, onClose, requestId }: PettyCas
         amount: Number(expenseForm.amount),
         description: expenseForm.description || undefined,
         product_id: trackInventory ? (expenseForm.product_id || undefined) : undefined,
+        product_uom_id: trackInventory && selectedUomId ? selectedUomId : undefined,
         warehouse_id: trackInventory ? (expenseForm.warehouse_id || undefined) : undefined,
         qty: trackInventory && expenseForm.qty ? Number(expenseForm.qty) : undefined,
         unit_price: expenseForm.unit_price ? Number(expenseForm.unit_price) : undefined,
@@ -115,22 +138,36 @@ export function PettyCashExpenseFormModal({ open, onClose, requestId }: PettyCas
 
             {/* Product-first mode */}
             {expenseMode === 'product' && (
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Produk *</label>
-                {selectedProduct ? (
-                  <div className="flex items-center justify-between px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm">
-                    <div>
-                      <span className="text-gray-900 dark:text-white font-medium">{selectedProduct.product_name}</span>
-                      {expenseForm.category_id && <span className="ml-2 text-xs text-gray-500">({categories.find(c => c.id === expenseForm.category_id)?.category_name})</span>}
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Produk *</label>
+                  {selectedProduct ? (
+                    <div className="flex items-center justify-between px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm">
+                      <div>
+                        <span className="text-gray-900 dark:text-white font-medium">{selectedProduct.product_name}</span>
+                        {expenseForm.category_id && <span className="ml-2 text-xs text-gray-500">({categories.find(c => c.id === expenseForm.category_id)?.category_name})</span>}
+                      </div>
+                      <button type="button" onClick={() => { setSelectedProduct(null); setTrackInventory(false); setExpenseForm(f => ({ ...f, product_id: '', category_id: '', sub_category_id: '' })) }}>
+                        <X className="w-4 h-4 text-gray-400 hover:text-gray-600" />
+                      </button>
                     </div>
-                    <button type="button" onClick={() => { setSelectedProduct(null); setTrackInventory(false); setExpenseForm(f => ({ ...f, product_id: '', category_id: '', sub_category_id: '' })) }}>
-                      <X className="w-4 h-4 text-gray-400 hover:text-gray-600" />
+                  ) : (
+                    <button type="button" onClick={() => setShowProductPicker(true)} className="w-full px-3 py-2.5 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 text-sm text-gray-500 hover:border-blue-400 hover:text-blue-600 transition-colors">
+                      Klik untuk cari produk...
                     </button>
+                  )}
+                </div>
+                {selectedProduct && uoms.length > 0 && (
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Satuan Pembelian *</label>
+                    <select value={selectedUomId} onChange={(e) => setSelectedUomId(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm">
+                      {uoms.map(u => (
+                        <option key={u.id} value={u.id}>
+                          {u.metric_units?.unit_name} {u.is_default_purchase_unit ? '(Default Beli)' : ''} {u.is_base_unit ? '(Satuan Base)' : ''}
+                        </option>
+                      ))}
+                    </select>
                   </div>
-                ) : (
-                  <button type="button" onClick={() => setShowProductPicker(true)} className="w-full px-3 py-2.5 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 text-sm text-gray-500 hover:border-blue-400 hover:text-blue-600 transition-colors">
-                    Klik untuk cari produk...
-                  </button>
                 )}
               </div>
             )}
@@ -159,27 +196,34 @@ export function PettyCashExpenseFormModal({ open, onClose, requestId }: PettyCas
 
             {/* Amount section */}
             {expenseMode === 'product' && selectedProduct ? (
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Qty ({selectedProduct.uom})</label>
-                  <input type="number" value={expenseForm.qty} onChange={(e) => {
-                    const qty = e.target.value
-                    const up = Number(expenseForm.unit_price) || 0
-                    setExpenseForm(f => ({ ...f, qty, amount: qty && up ? String(Number(qty) * up) : f.amount }))
-                  }} placeholder="0" className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm" />
+              <div className="space-y-1.5">
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Qty ({uomName})</label>
+                    <input type="number" value={expenseForm.qty} onChange={(e) => {
+                      const qty = e.target.value
+                      const up = Number(expenseForm.unit_price) || 0
+                      setExpenseForm(f => ({ ...f, qty, amount: qty && up ? String(Number(qty) * up) : f.amount }))
+                    }} placeholder="0" className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Harga/{uomName}</label>
+                    <input type="number" value={expenseForm.unit_price} onChange={(e) => {
+                      const up = e.target.value
+                      const qty = Number(expenseForm.qty) || 0
+                      setExpenseForm(f => ({ ...f, unit_price: up, amount: up && qty ? String(Number(up) * qty) : f.amount }))
+                    }} placeholder="0" className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Total *</label>
+                    <input type="number" value={expenseForm.amount} onChange={(e) => setExpenseForm(f => ({ ...f, amount: e.target.value }))} placeholder="0" className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm font-medium" />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Harga/{selectedProduct.uom}</label>
-                  <input type="number" value={expenseForm.unit_price} onChange={(e) => {
-                    const up = e.target.value
-                    const qty = Number(expenseForm.qty) || 0
-                    setExpenseForm(f => ({ ...f, unit_price: up, amount: up && qty ? String(Number(up) * qty) : f.amount }))
-                  }} placeholder="0" className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Total *</label>
-                  <input type="number" value={expenseForm.amount} onChange={(e) => setExpenseForm(f => ({ ...f, amount: e.target.value }))} placeholder="0" className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm font-medium" />
-                </div>
+                {trackInventory && activeUom && (
+                  <div className="text-xs text-blue-600 dark:text-blue-400 mt-1 bg-blue-50/50 dark:bg-blue-950/20 p-2 rounded-lg border border-blue-100 dark:border-blue-900/50">
+                    Masuk gudang: <strong className="font-semibold">{(Number(expenseForm.qty) || 0) * conversionFactor} {baseUomName}</strong> (Satuan Base)
+                  </div>
+                )}
               </div>
             ) : (
               <div>

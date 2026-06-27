@@ -59,7 +59,7 @@ export function PettyCashExpenseTable({ expenses, requestStatus, onEdit, onDelet
                   </td>
                   <td className="px-3 py-2 text-right text-gray-700 dark:text-gray-300 tabular-nums">
                     {e.qty != null ? (
-                      <span>{fmtQty(e.qty)} <span className="text-xs text-gray-400">{e.base_unit_name || ''}</span></span>
+                      <span>{fmtQty(e.qty)} <span className="text-xs text-gray-400">{e.product_uom_name || e.base_unit_name || ''}</span></span>
                     ) : '—'}
                   </td>
                   <td className="px-3 py-2 text-right text-gray-700 dark:text-gray-300 tabular-nums">{fmtCurrency(e.unit_price)}</td>

@@ -7,6 +7,7 @@ import { useCategories, useSubCategories } from '@/features/categories/api/categ
 import { useWarehouses } from '@/features/inventory/api/inventory.api'
 import { useUpdateExpense, useUploadPettyCashReceipt } from '../api/pettyCash.api'
 import type { PettyCashExpense } from '../types/pettyCash.types'
+import { useProductUoms } from '@/features/product-uoms/api/productUoms.api'
 
 interface PettyCashExpenseEditModalProps {
   open: boolean
@@ -33,6 +34,26 @@ export function PettyCashExpenseEditModal({ open, onClose, expense, requestId }:
   })
   const [receiptFile, setReceiptFile] = useState<File | null>(null)
   const [receiptPreview, setReceiptPreview] = useState<string | null>(null)
+
+  const [selectedUomId, setSelectedUomId] = useState<string>('')
+  const { data: uoms = [] } = useProductUoms(expense?.product_id ?? '', false)
+
+  useEffect(() => {
+    if (expense?.product_uom_id) {
+      setSelectedUomId(expense.product_uom_id)
+    } else if (uoms.length > 0) {
+      const defaultUom = uoms.find(u => u.is_default_purchase_unit) || uoms.find(u => u.is_base_unit) || uoms[0]
+      if (defaultUom) setSelectedUomId(defaultUom.id)
+    } else {
+      setSelectedUomId('')
+    }
+  }, [expense, uoms])
+
+  const activeUom = uoms.find(u => u.id === selectedUomId)
+  const uomName = activeUom?.metric_units?.unit_name ?? expense?.product_uom_name ?? expense?.base_unit_name ?? 'unit'
+  const conversionFactor = activeUom?.conversion_factor ?? 1
+  const baseUom = uoms.find(u => u.is_base_unit) || uoms.find(u => u.conversion_factor === 1)
+  const baseUomName = baseUom?.metric_units?.unit_name ?? expense?.base_unit_name ?? 'pcs'
 
   const { data: categoriesData } = useCategories({ limit: 200 })
   const { data: subCategoriesData } = useSubCategories({ category_id: form.category_id, limit: 100 })
@@ -110,6 +131,7 @@ export function PettyCashExpenseEditModal({ open, onClose, expense, requestId }:
         qty: form.qty ? Number(form.qty) : null,
         unit_price: form.unit_price ? Number(form.unit_price) : null,
         warehouse_id: form.warehouse_id || null,
+        product_uom_id: selectedUomId || null,
       })
 
       // Upload receipt if new file selected
@@ -139,9 +161,23 @@ export function PettyCashExpenseEditModal({ open, onClose, expense, requestId }:
         <div className="space-y-3">
           {/* Product info (read-only) */}
           {expense.product_name && (
-            <div className="px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-700/30 text-sm">
-              <span className="text-xs text-gray-500">Produk:</span>
-              <span className="ml-2 font-medium text-gray-900 dark:text-white">{expense.product_name}</span>
+            <div className="space-y-3">
+              <div className="px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-700/30 text-sm">
+                <span className="text-xs text-gray-500">Produk:</span>
+                <span className="ml-2 font-medium text-gray-900 dark:text-white">{expense.product_name}</span>
+              </div>
+              {uoms.length > 0 && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Satuan Pembelian *</label>
+                  <select value={selectedUomId} onChange={(e) => setSelectedUomId(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm">
+                    {uoms.map(u => (
+                      <option key={u.id} value={u.id}>
+                        {u.metric_units?.unit_name} {u.is_default_purchase_unit ? '(Default Beli)' : ''} {u.is_base_unit ? '(Satuan Base)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
           )}
 
@@ -170,23 +206,30 @@ export function PettyCashExpenseEditModal({ open, onClose, expense, requestId }:
           </div>
 
           {/* Qty + Unit Price + Total */}
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">
-                Qty{expense.base_unit_name ? ` (${expense.base_unit_name})` : ''}
-              </label>
-              <input type="number" value={form.qty} onChange={(e) => handleQtyChange(e.target.value)} placeholder="—" min="0" step="0.01" className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm" />
+          <div className="space-y-1.5">
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">
+                  Qty ({uomName})
+                </label>
+                <input type="number" value={form.qty} onChange={(e) => handleQtyChange(e.target.value)} placeholder="—" min="0" step="0.01" className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">
+                  Harga/{uomName}
+                </label>
+                <input type="number" value={form.unit_price} onChange={(e) => handleUnitPriceChange(e.target.value)} placeholder="—" min="0" className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Total *</label>
+                <input type="number" value={form.amount} onChange={(e) => setForm(f => ({ ...f, amount: e.target.value }))} placeholder="0" min="0" className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm font-medium" />
+              </div>
             </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">
-                Harga/{expense.base_unit_name || 'unit'}
-              </label>
-              <input type="number" value={form.unit_price} onChange={(e) => handleUnitPriceChange(e.target.value)} placeholder="—" min="0" className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm" />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Total *</label>
-              <input type="number" value={form.amount} onChange={(e) => setForm(f => ({ ...f, amount: e.target.value }))} placeholder="0" min="0" className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm font-medium" />
-            </div>
+            {expense.affects_inventory && activeUom && (
+              <div className="text-xs text-blue-600 dark:text-blue-400 mt-1 bg-blue-50/50 dark:bg-blue-950/20 p-2 rounded-lg border border-blue-100 dark:border-blue-900/50 font-medium">
+                Masuk gudang: <strong className="font-semibold">{(Number(form.qty) || 0) * conversionFactor} {baseUomName}</strong> (Satuan Base)
+              </div>
+            )}
           </div>
 
           {/* Date + Description */}

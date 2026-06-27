@@ -114,7 +114,7 @@ export function ProductPickerModal({
   })
 
   // ── Infinite scroll products ──
-  const productsEnabled = open && (!!categoryFilter || debouncedSearch.length >= 2)
+  const productsEnabled = !!open
 
   const {
     data: infiniteData,
