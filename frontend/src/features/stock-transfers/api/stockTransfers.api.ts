@@ -113,7 +113,8 @@ export const useCreateStockTransfer = () => {
       notes?: string | null
       lines: { product_id: string; qty: number; notes?: string | null }[]
     }) => {
-      const { data } = await api.post('/stock-transfers', body)
+      const endpoint = body.transfer_type === 'LOAN' ? '/stock-transfers/loan' : '/stock-transfers'
+      const { data } = await api.post(endpoint, body)
       return data.data as StockTransfer
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['stock-transfers'] }),

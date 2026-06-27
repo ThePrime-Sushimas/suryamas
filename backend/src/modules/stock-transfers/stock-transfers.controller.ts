@@ -61,6 +61,29 @@ export class StockTransfersController {
     try {
       const { body } = (req as CreateReq).validated
       const { branchIds, userId } = await transferScope(req)
+      
+      // Keamanan: endpoint ini hanya boleh membuat TRANSFER, tidak boleh LOAN
+      if (body.transfer_type === 'LOAN') {
+        throw new Error('Hanya pengguna dengan persetujuan yang dapat membuat pinjaman (LOAN)')
+      }
+      
+      const result = await stockTransfersService.create(branchIds, { ...body, created_by: userId })
+      sendSuccess(res, result, 'Stock transfer created', 201)
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'create_stock_transfer' })
+    }
+  }
+
+  createLoan = async (req: Request, res: Response) => {
+    try {
+      const { body } = (req as CreateReq).validated
+      const { branchIds, userId } = await transferScope(req)
+      
+      // Keamanan: endpoint ini hanya boleh membuat LOAN, tidak boleh TRANSFER
+      if (body.transfer_type !== 'LOAN') {
+        throw new Error('Endpoint ini hanya digunakan untuk membuat pinjaman (LOAN)')
+      }
+      
       const result = await stockTransfersService.create(branchIds, { ...body, created_by: userId })
       sendSuccess(res, result, 'Stock transfer created', 201)
     } catch (error: unknown) {

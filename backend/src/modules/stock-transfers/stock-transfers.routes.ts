@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { authenticate } from '../../middleware/auth.middleware'
 import { resolveBranchContext } from '../../middleware/branch-context.middleware'
-import { canView, canInsert, canUpdate, canDelete, canRelease } from '../../middleware/permission.middleware'
+import { canView, canInsert, canUpdate, canDelete, canRelease, canApprove } from '../../middleware/permission.middleware'
 import { validateSchema } from '../../middleware/validation.middleware'
 import { stockTransfersController } from './stock-transfers.controller'
 import {
@@ -22,8 +22,11 @@ router.get('/', canView('stock_transfers'), validateSchema(transferListSchema), 
 // Detail
 router.get('/:id', canView('stock_transfers'), validateSchema(transferIdSchema), (req, res) => stockTransfersController.getById(req, res))
 
-// Create
+// Create (TRANSFER only)
 router.post('/', canInsert('stock_transfers'), validateSchema(createTransferSchema), (req, res) => stockTransfersController.create(req, res))
+
+// Create LOAN — requires approve permission
+router.post('/loan', canApprove('stock_transfers'), validateSchema(createTransferSchema), (req, res) => stockTransfersController.createLoan(req, res))
 
 // Update (DRAFT only)
 router.put('/:id', canUpdate('stock_transfers'), validateSchema(updateTransferSchema), (req, res) => stockTransfersController.update(req, res))
