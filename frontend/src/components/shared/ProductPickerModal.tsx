@@ -36,6 +36,7 @@ export interface ProductPickerModalProps {
   filterAsset?: boolean
   excludeAssets?: boolean
   title?: string
+  hideUom?: boolean
 }
 
 // ─── Internal types ─────────────────────────────────────────────────────────
@@ -77,6 +78,7 @@ export function ProductPickerModal({
   filterAsset = false,
   excludeAssets = false,
   title = 'Pilih Produk',
+  hideUom = false,
 }: ProductPickerModalProps) {
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')
@@ -265,7 +267,7 @@ export function ProductPickerModal({
                 <thead className="sticky top-0 bg-gray-50 dark:bg-gray-800 text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
                   <tr>
                     <th className="text-left px-4 py-2.5">Produk</th>
-                    <th className="text-left px-3 py-2.5">Satuan</th>
+                    {!hideUom && <th className="text-left px-3 py-2.5">Satuan</th>}
                     {showStock && (
                       <>
                         <th className="text-right px-3 py-2.5">Gudang</th>
@@ -289,7 +291,7 @@ export function ProductPickerModal({
                         <td className="px-4 py-3">
                           <div className="font-medium text-gray-900 dark:text-white">{p.product_name}</div>                          
                         </td>
-                        <td className="px-3 py-3 text-gray-600 dark:text-gray-300">{getUomBuy(p)}</td>
+                        {!hideUom && <td className="px-3 py-3 text-gray-600 dark:text-gray-300">{getUomBuy(p)}</td>}
                         {showStock && (
                           <>
                             <td className="px-3 py-3 text-right">
@@ -355,7 +357,7 @@ export function ProductPickerModal({
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
                           <p className="font-medium text-gray-900 dark:text-white truncate">{p.product_name}</p>
-                          <p className="text-xs text-gray-400">{p.product_code} · {getUomBuy(p)}</p>
+                          <p className="text-xs text-gray-400">{p.product_code}{!hideUom ? ` · ${getUomBuy(p)}` : ''}</p>
                           <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-gray-500">
                             {showStock && <span>Gudang: {mainStock?.qty ?? 0} {mainStock?.uom ?? ''}</span>}
                             {showStock && <span>Ready: {readyStock?.qty ?? 0} {readyStock?.uom ?? ''}</span>}

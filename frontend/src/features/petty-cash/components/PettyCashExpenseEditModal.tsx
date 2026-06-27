@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react'
-import { X, Loader2 } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { X, Loader2, Camera, Trash2 } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
+import api from '@/lib/axios'
 import { useCategories, useSubCategories } from '@/features/categories/api/categories.api'
 import { useWarehouses } from '@/features/inventory/api/inventory.api'
-import { useUpdateExpense } from '../api/pettyCash.api'
+import { useUpdateExpense, useUploadPettyCashReceipt } from '../api/pettyCash.api'
 import type { PettyCashExpense } from '../types/pettyCash.types'
 
 interface PettyCashExpenseEditModalProps {
@@ -17,6 +18,8 @@ interface PettyCashExpenseEditModalProps {
 export function PettyCashExpenseEditModal({ open, onClose, expense, requestId }: PettyCashExpenseEditModalProps) {
   const toast = useToast()
   const updateMutation = useUpdateExpense()
+  const uploadReceiptMutation = useUploadPettyCashReceipt()
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [form, setForm] = useState({
     category_id: '',
@@ -28,6 +31,8 @@ export function PettyCashExpenseEditModal({ open, onClose, expense, requestId }:
     unit_price: '',
     warehouse_id: '',
   })
+  const [receiptFile, setReceiptFile] = useState<File | null>(null)
+  const [receiptPreview, setReceiptPreview] = useState<string | null>(null)
 
   const { data: categoriesData } = useCategories({ limit: 200 })
   const { data: subCategoriesData } = useSubCategories({ category_id: form.category_id, limit: 100 })
@@ -49,8 +54,29 @@ export function PettyCashExpenseEditModal({ open, onClose, expense, requestId }:
         unit_price: expense.unit_price != null ? String(expense.unit_price) : '',
         warehouse_id: expense.warehouse_id ?? '',
       })
+      setReceiptPreview(expense.receipt_url ?? null)
+      setReceiptFile(null)
     }
   }, [expense])
+
+  // Convert receipt_url (R2 path) → signed URL for <img> display
+  useEffect(() => {
+    if (!expense?.receipt_url) {
+      setReceiptPreview(null)
+      return
+    }
+    const raw = expense.receipt_url
+    // Already a full URL
+    if (raw.startsWith('http://') || raw.startsWith('https://')) {
+      setReceiptPreview(raw)
+      return
+    }
+    let cancelled = false
+    api.get('/storage/signed-url', { params: { path: raw, bucket: 'buktisetoran' } })
+      .then((res) => { if (!cancelled) setReceiptPreview(res.data?.data?.url ?? null) })
+      .catch(() => { if (!cancelled) setReceiptPreview(null) })
+    return () => { cancelled = true }
+  }, [expense?.receipt_url])
 
   const handleQtyChange = (qty: string) => {
     const qtyNum = Number(qty) || 0
@@ -85,6 +111,16 @@ export function PettyCashExpenseEditModal({ open, onClose, expense, requestId }:
         unit_price: form.unit_price ? Number(form.unit_price) : null,
         warehouse_id: form.warehouse_id || null,
       })
+
+      // Upload receipt if new file selected
+      if (receiptFile) {
+        await uploadReceiptMutation.mutateAsync({
+          expenseId: expense.id,
+          file: receiptFile,
+          requestId,
+        })
+      }
+
       toast.success('Expense diperbarui')
       onClose()
     } catch (err) { toast.error(parseApiError(err, 'Gagal memperbarui expense')) }
@@ -118,12 +154,16 @@ export function PettyCashExpenseEditModal({ open, onClose, expense, requestId }:
                 {categories.map(c => <option key={c.id} value={c.id}>{c.category_code} — {c.category_name}</option>)}
               </select>
             </div>
-            {form.category_id && subCategories.length > 0 && (
+            {form.category_id && (
               <div>
                 <label className="block text-xs font-medium text-gray-500 mb-1">Sub-kategori</label>
                 <select value={form.sub_category_id} onChange={(e) => setForm(f => ({ ...f, sub_category_id: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm">
                   <option value="">—</option>
-                  {subCategories.map(sc => <option key={sc.id} value={sc.id}>{sc.sub_category_name}</option>)}
+                  {subCategories.length > 0 ? (
+                    subCategories.map(sc => <option key={sc.id} value={sc.id}>{sc.sub_category_name}</option>)
+                  ) : (
+                    <option value="" disabled>Memuat...</option>
+                  )}
                 </select>
               </div>
             )}
@@ -171,6 +211,48 @@ export function PettyCashExpenseEditModal({ open, onClose, expense, requestId }:
               </select>
             </div>
           )}
+
+          {/* Receipt Photo */}
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Foto Struk</label>
+            {(receiptPreview || receiptFile) && (
+              <div className="mb-2 relative inline-block">
+                <img
+                  src={receiptFile ? URL.createObjectURL(receiptFile) : receiptPreview ?? ''}
+                  alt="Receipt"
+                  className="w-48 h-36 object-cover rounded-lg border border-gray-200"
+                />
+                {receiptFile && (
+                  <button
+                    onClick={() => setReceiptFile(null)}
+                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-0.5"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            )}
+            {receiptPreview && !receiptFile && (
+              <p className="text-xs text-gray-400 mb-1">Foto sudah ada. Upload ulang untuk mengganti.</p>
+            )}
+            <input
+              type="file"
+              ref={fileInputRef}
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                if (file) setReceiptFile(file)
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="w-full px-3 py-2 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 text-sm text-gray-500 hover:border-blue-400 hover:text-blue-600 transition-colors flex items-center justify-center gap-2"
+            >
+              <Camera className="w-4 h-4" /> {receiptPreview ? 'Ganti foto struk' : 'Upload foto struk (opsional)'}
+            </button>
+          </div>
         </div>
 
         <div className="flex justify-end gap-2 pt-2">

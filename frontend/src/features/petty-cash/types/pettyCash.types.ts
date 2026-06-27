@@ -64,6 +64,7 @@ export interface PettyCashExpense {
   expense_coa_name: string | null
   settlement_id: string | null
   stock_movement_id: string | null
+  receipt_url: string | null
   created_at: string
   created_by_name: string | null
 }

@@ -264,6 +264,7 @@ export function PettyCashExpenseFormModal({ open, onClose, requestId }: PettyCas
       <ProductPickerModal
         open={showProductPicker}
         onClose={() => setShowProductPicker(false)}
+        hideUom
         onSelect={(product) => {
           setExpenseForm(f => ({
             ...f,
