@@ -444,7 +444,7 @@ export class DailyPrepOrdersRepository {
     const { rows } = await pool.query(
       `SELECT * FROM daily_prep_orders
        WHERE branch_id = $1 AND prep_date = $2::date
-         AND is_deleted = false
+         AND is_deleted = false AND status = 'DRAFT'
        ORDER BY created_at DESC
        LIMIT 1`,
       [branchId, prepDate]
@@ -452,7 +452,8 @@ export class DailyPrepOrdersRepository {
     return rows[0] ?? null
   }
 
-  async cancelAllForBranchDate(client: PoolClient, branchId: string, prepDate: string): Promise<void> {
+  /** Cancel active DRAFT only — confirmed pickups for the same day are kept as history. */
+  async cancelDraftsForBranchDate(client: PoolClient, branchId: string, prepDate: string): Promise<void> {
     await client.query(
       `UPDATE daily_prep_orders 
        SET status = 'CANCELLED', 
@@ -460,7 +461,8 @@ export class DailyPrepOrdersRepository {
            cancel_reason = 'Re-generated', 
            is_deleted = true, 
            updated_at = now()
-       WHERE branch_id = $1 AND prep_date = $2::date AND is_deleted = false`,
+       WHERE branch_id = $1 AND prep_date = $2::date
+         AND is_deleted = false AND status = 'DRAFT'`,
       [branchId, prepDate]
     )
   }

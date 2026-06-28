@@ -126,8 +126,8 @@ export class DailyPrepOrdersService {
     const relevantLines = forecastLines.filter(l => l.suggested_qty > 0 || l.current_ready_stock > 0)
 
     const newDpoId = await stockRepository.withTransaction(async (client) => {
-      // 7. Cancel SEMUA existing DPO untuk branch+date yang sama (re-generate)
-      await dailyPrepOrdersRepository.cancelAllForBranchDate(client, dto.branch_id, dto.prep_date)
+      // 7. Cancel DRAFT lama saja — DPO CONFIRMED tetap sebagai riwayat pengambilan
+      await dailyPrepOrdersRepository.cancelDraftsForBranchDate(client, dto.branch_id, dto.prep_date)
 
       // 8. Ambil branch code untuk DPO number
       const branchCode = await dailyPrepOrdersRepository.getBranchCode(client, dto.branch_id)
@@ -188,8 +188,8 @@ export class DailyPrepOrdersService {
     }
 
     const newDpoId = await stockRepository.withTransaction(async (client) => {
-      // Soft-delete existing active DPOs for same branch+date (unique constraint)
-      await dailyPrepOrdersRepository.cancelAllForBranchDate(client, dto.branch_id, dto.prep_date)
+      // Cancel existing DRAFT for same branch+date (confirmed pickups stay)
+      await dailyPrepOrdersRepository.cancelDraftsForBranchDate(client, dto.branch_id, dto.prep_date)
 
       const branchCode = await dailyPrepOrdersRepository.getBranchCode(client, dto.branch_id)
       if (!branchCode) throw new Error(`Branch ${dto.branch_id} tidak ditemukan`)

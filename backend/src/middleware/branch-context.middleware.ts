@@ -2,7 +2,7 @@ import { Response, NextFunction } from 'express'
 import { AuthRequest, BranchContext } from '../types/common.types'
 import { pool } from '../config/db'
 import { sendError } from '../utils/response.util'
-import { logWarn } from '../config/logger'
+import { logWarn, logInfo } from '../config/logger'
 
 const branchContextCache = new Map<string, { context: BranchContext; expiresAt: number }>()
 const CACHE_TTL = 5 * 60 * 1000 // 5 minutes
@@ -59,11 +59,36 @@ export const resolveBranchContext = async (
     const branchId = req.headers['x-branch-id'] as string
 
     if (!branchId) {
-      const { rows } = await pool.query(BRANCH_CONTEXT_QUERY_PRIMARY, [req.user.id])
+      let { rows } = await pool.query(BRANCH_CONTEXT_QUERY_PRIMARY, [req.user.id])
+
+      // Fallback: jika tidak ada primary, ambil branch active pertama
+      if (rows.length === 0) {
+        const FALLBACK_QUERY = `
+          SELECT eb.*, b.id AS b_id, b.branch_name, b.company_id, b.status AS branch_status
+          FROM employee_branches eb
+          JOIN branches b ON b.id = eb.branch_id
+          JOIN employees e ON e.id = eb.employee_id
+          WHERE e.user_id = $1
+            AND eb.status = 'active'
+            AND b.status IN ('active', 'closed')
+          ORDER BY eb.created_at ASC
+          LIMIT 1`
+        const result = await pool.query(FALLBACK_QUERY, [req.user.id])
+        rows = result.rows
+
+        if (rows.length > 0) {
+          // Auto-mark as primary for next request
+          await pool.query(
+            'UPDATE employee_branches SET is_primary = true WHERE id = $1',
+            [rows[0].id]
+          )
+          logInfo('Auto-assigned primary branch', { user_id: req.user.id, branch_id: rows[0].branch_id })
+        }
+      }
 
       if (rows.length === 0) {
         logWarn('No active primary branch', { user_id: req.user.id })
-        sendError(res, 'No active branch assignment', 403)
+        sendError(res, 'Tidak ada penempatan cabang aktif. Silakan hubungi admin untuk assign cabang.', 403)
         return
       }
 
