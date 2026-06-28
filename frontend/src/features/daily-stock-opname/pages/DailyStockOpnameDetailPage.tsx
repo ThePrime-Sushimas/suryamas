@@ -10,6 +10,8 @@ import {
   Clock,
   User,
   RotateCcw,
+  ChevronUp,
+  ChevronDown,
 } from 'lucide-react'
 import { useListNavigation } from '@/lib/urlFilters'
 import { useToast } from '@/contexts/ToastContext'
@@ -115,6 +117,7 @@ export default function DailyStockOpnameDetailPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [filterHighRisk, setFilterHighRisk] = useState(false)
   const [filterHasVariance, setFilterHasVariance] = useState(false)
+  const [productSortDir, setProductSortDir] = useState<'asc' | 'desc'>('asc')
   const [showResolveModal, setShowResolveModal] = useState(false)
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
 
@@ -158,6 +161,17 @@ export default function DailyStockOpnameDetailPage() {
 
     return lines
   }, [detail?.lines, searchQuery, filterHighRisk, filterHasVariance, localActuals])
+
+  const sortedFilteredLines = useMemo(() => {
+    return [...filteredLines].sort((a, b) => {
+      const cmp = a.product_name.localeCompare(b.product_name, 'id')
+      return productSortDir === 'asc' ? cmp : -cmp
+    })
+  }, [filteredLines, productSortDir])
+
+  const toggleProductSort = useCallback(() => {
+    setProductSortDir((dir) => (dir === 'asc' ? 'desc' : 'asc'))
+  }, [])
 
   // ── Summary with local actuals ────────────────────────────────────────────
   const liveSummary = useMemo(() => {
@@ -417,7 +431,7 @@ export default function DailyStockOpnameDetailPage() {
       </div>
 
       {/* ── Table ──────────────────────────────────────────────────────────── */}
-      <div className="flex-1 overflow-auto min-h-[40rem]">
+      <div className="flex-1 overflow-auto min-h-160">
         <div className="min-w-full">
           <table className="w-full text-sm">
             <thead className="bg-gray-50/80 dark:bg-gray-800/80 border-b border-gray-200 dark:border-gray-700/60 sticky top-0 z-10">
@@ -425,8 +439,19 @@ export default function DailyStockOpnameDetailPage() {
                 <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                   Code
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  Produk
+                <th className="px-3 py-3 text-left">
+                  <button
+                    type="button"
+                    onClick={toggleProductSort}
+                    className="inline-flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
+                  >
+                    Produk
+                    {productSortDir === 'asc' ? (
+                      <ChevronUp className="w-3 h-3" />
+                    ) : (
+                      <ChevronDown className="w-3 h-3" />
+                    )}
+                  </button>
                 </th>
                 <th className="px-3 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
                   Stok Awal
@@ -455,14 +480,14 @@ export default function DailyStockOpnameDetailPage() {
               </tr>
             </thead>
             <tbody>
-              {filteredLines.length === 0 ? (
+              {sortedFilteredLines.length === 0 ? (
                 <tr>
                   <td colSpan={10} className="px-6 py-12 text-center text-gray-400 text-sm">
                     Tidak ada item yang cocok
                   </td>
                 </tr>
               ) : (
-                filteredLines.map((line) => (
+                sortedFilteredLines.map((line) => (
                   <OpnameLineRow
                     key={line.id}
                     line={line}

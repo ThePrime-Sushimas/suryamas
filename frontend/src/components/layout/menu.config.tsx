@@ -652,6 +652,13 @@ export const menuItems: MenuItem[] = [
             module: "goods_processing",
           },
           {
+            id: "inv-stock",
+            name: "Stock Gudang",
+            href: "/inventory/stock",
+            icon: <Package size={16} />,
+            module: "stock",
+          },
+          {
             id: "inv-stock-adjustments",
             name: "Waste & Breakdown",
             href: "/inventory/stock-adjustments",
@@ -788,13 +795,6 @@ export const menuItems: MenuItem[] = [
         name: "Analisa Gudang",
         icon: <BarChart3 size={16} />,               // fix: Warehouse → BarChart3 (analisa = grafik)
         submenu: [
-          {
-            id: "inv-stock",
-            name: "Stock Gudang",
-            href: "/inventory/stock",
-            icon: <Package size={16} />,
-            module: "stock",
-          },
           {
             id: "inv-movements",
             name: "History Product",

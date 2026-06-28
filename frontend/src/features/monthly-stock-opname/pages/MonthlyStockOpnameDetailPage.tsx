@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useParams } from 'react-router-dom'
-import { ArrowLeft, RefreshCw, CheckCircle, Printer, RotateCcw, AlertTriangle } from 'lucide-react'
+import { ArrowLeft, RefreshCw, CheckCircle, Printer, RotateCcw, AlertTriangle, FileDown } from 'lucide-react'
 import { useListNavigation } from '@/lib/urlFilters'
 import {
   useMonthlyOpnameDetail,
@@ -13,6 +13,7 @@ import {
 } from '../api/monthlyStockOpname'
 
 import { PrintMonthlyOpnameModal } from '../components/PrintMonthlyOpnameModal'
+import { exportMonthlyOpnamePdf } from '../utils/monthly-opname-document.util'
 import { usePermissionStore } from '@/features/branch_context/store/permission.store'
 import { useToast } from '@/contexts/ToastContext'
 import type { MonthlyStockOpnameLine, MonthlyOpnameStatus } from '../types'
@@ -182,7 +183,8 @@ export default function MonthlyStockOpnameDetailPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="h-screen flex flex-col bg-gray-50/50">
+      <div className="shrink-0 px-6 pt-6 pb-4 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -201,6 +203,14 @@ export default function MonthlyStockOpnameDetailPage() {
         </div>
 
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => exportMonthlyOpnamePdf(detail)}
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+          >
+            <FileDown className="h-4 w-4" />
+            Export PDF
+          </button>
           {isEditable && canUpdate && (
             <>
               <button
@@ -292,7 +302,7 @@ export default function MonthlyStockOpnameDetailPage() {
       {/* Reopen request notice */}
       {canUpdate && detail?.status === 'CONFIRMED' && pendingReopenRequest && (
         <div className="flex items-start gap-2 p-3 bg-orange-50 border border-orange-200 rounded-lg">
-          <AlertTriangle className="h-5 w-5 text-orange-500 flex-shrink-0 mt-0.5" />
+          <AlertTriangle className="h-5 w-5 text-orange-500 shrink-0 mt-0.5" />
           <div className="text-sm text-orange-900">
             <p className="font-medium">Permintaan reopen sedang menunggu approval</p>
             <p className="text-xs text-orange-800 mt-1">
@@ -309,19 +319,20 @@ export default function MonthlyStockOpnameDetailPage() {
 
       {linesNeedingInvestigasi.length > 0 && isEditable && (
         <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-          <AlertTriangle className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" />
+          <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
           <div className="text-sm text-amber-800">
             <p className="font-medium">Investigasi note belum lengkap</p>
             <p>{linesNeedingInvestigasi.length} produk dengan selisih perlu investigasi note sebelum bisa di-confirm.</p>
           </div>
         </div>
       )}
+      </div>
 
-      {/* Lines Table */}
-      <div className="bg-white border rounded-lg overflow-hidden">
-        <div className="overflow-x-auto">
+      {/* Lines Table — scroll container with sticky header */}
+      <div className="flex-1 overflow-auto min-h-0 px-6 pb-6">
+        <div className="bg-white border rounded-lg">
           <table className="min-w-full divide-y divide-gray-200 text-sm">
-            <thead className="bg-gray-50">
+            <thead className="bg-gray-50/95 border-b border-gray-200 sticky top-0 z-10">
               <tr>
                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Produk</th>
                 <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Snapshot</th>
