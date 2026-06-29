@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
-import { useRejectPettyCashRequest } from '../api/pettyCash.api'
+import { useRejectPettyCashRequest } from '../hooks/pettyCash.api'
 
 interface PettyCashRejectModalProps {
   open: boolean
@@ -21,7 +21,7 @@ export function PettyCashRejectModal({ open, onClose, requestId }: PettyCashReje
       await rejectMutation.mutateAsync({ id: requestId, rejection_reason: reason.trim() })
       toast.success('Request ditolak')
       onClose()
-    } catch (err) { toast.error(parseApiError(err, 'Gagal reject')) }
+    } catch (err) { toast.error(parseApiError(err, 'Gagal reject request')) }
   }
 
   if (!open) return null

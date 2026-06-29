@@ -1,33 +1,27 @@
-import { useState } from 'react'
 import { Plus, Search, X, Loader2 } from 'lucide-react'
-import { useToast } from '@/contexts/ToastContext'
-import { parseApiError } from '@/lib/errorParser'
 import { Pagination } from '@/components/ui/Pagination'
 import { useUrlFilters, useListNavigation } from '@/lib/urlFilters'
 import { usePermissionStore } from '@/features/branch_context/store/permission.store'
 import { useBranches } from '@/features/branches/api/branches.api'
-import { usePettyCashRequests, useCreatePettyCashRequest } from '../api/pettyCash.api'
+import { usePettyCashRequests } from '../hooks/pettyCash.api'
 import { useCoaOptions } from '@/features/food-production/api/food-production.api'
 import { PettyCashStatusBadge } from '../components/PettyCashStatusBadge'
+import { PettyCashCreateModal } from '../components/PettyCashCreateModal'
+import { useCreatePettyCashRequestForm } from '../hooks/useCreatePettyCashRequestForm'
 import { pettyCashFilterConfig } from '../utils/pettyCashFilters.url'
+import { fmtCurrency, fmtDate } from '../utils/pettyCash.formatters'
+import { PETTY_CASH_STATUS_LABELS } from '../types/pettyCash.status'
 import type { PettyCashRequestStatus } from '../types/pettyCash.types'
-
-const fmtCurrency = (v: number | null) =>
-  v == null ? '—' : new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(v)
-
-const fmtDate = (d: string | null) =>
-  d ? new Date(d).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
 
 const STATUS_OPTIONS: Array<{ value: '' | PettyCashRequestStatus; label: string }> = [
   { value: '', label: 'Semua status' },
-  { value: 'PENDING', label: 'Pending' },
-  { value: 'DISBURSED', label: 'Aktif' },
-  { value: 'CLOSED', label: 'Selesai' },
-  { value: 'REJECTED', label: 'Ditolak' },
+  { value: 'PENDING', label: PETTY_CASH_STATUS_LABELS.PENDING },
+  { value: 'DISBURSED', label: PETTY_CASH_STATUS_LABELS.DISBURSED },
+  { value: 'CLOSED', label: PETTY_CASH_STATUS_LABELS.CLOSED },
+  { value: 'REJECTED', label: PETTY_CASH_STATUS_LABELS.REJECTED },
 ]
 
 export default function PettyCashListPage() {
-  const toast = useToast()
   const hasPermission = usePermissionStore((s) => s.hasPermission)
   const canInsert = hasPermission('petty_cash', 'insert')
 
@@ -50,30 +44,7 @@ export default function PettyCashListPage() {
   const branches = branchesData?.data ?? []
   const pettyCashCoaOptions = coaOptions ?? []
 
-  // Create modal state
-  const [showCreate, setShowCreate] = useState(false)
-  const [createForm, setCreateForm] = useState({ branch_id: '', amount_requested: '', petty_cash_coa_id: '', description: '' })
-  const createMutation = useCreatePettyCashRequest()
-
-  const handleCreate = async () => {
-    if (!createForm.branch_id || !createForm.amount_requested || !createForm.petty_cash_coa_id) {
-      toast.error('Cabang, jumlah, dan COA kas kecil wajib diisi')
-      return
-    }
-    try {
-      await createMutation.mutateAsync({
-        branch_id: createForm.branch_id,
-        amount_requested: Number(createForm.amount_requested),
-        petty_cash_coa_id: createForm.petty_cash_coa_id,
-        description: createForm.description || undefined,
-      })
-      toast.success('Request berhasil dibuat')
-      setShowCreate(false)
-      setCreateForm({ branch_id: '', amount_requested: '', petty_cash_coa_id: '', description: '' })
-    } catch (err) {
-      toast.error(parseApiError(err, 'Gagal membuat request'))
-    }
-  }
+  const createRequest = useCreatePettyCashRequestForm()
 
   const rows = data?.data ?? []
   const pagination = data?.pagination
@@ -86,7 +57,7 @@ export default function PettyCashListPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Kas Kecil</h1>
         {canInsert && (
-          <button onClick={() => setShowCreate(true)} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700">
+          <button onClick={createRequest.open} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700">
             <Plus className="w-4 h-4" /> Buat Request
           </button>
         )}
@@ -173,46 +144,16 @@ export default function PettyCashListPage() {
         <Pagination pagination={{ ...pagination, page: filters.page }} onPageChange={setPage} />
       )}
 
-      {/* Create Request Modal */}
-      {showCreate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowCreate(false)}>
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Buat Request Kas Kecil</h3>
-              <button onClick={() => setShowCreate(false)} className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700"><X className="w-5 h-5 text-gray-400" /></button>
-            </div>
-            <div className="space-y-3">
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Cabang *</label>
-                <select value={createForm.branch_id} onChange={(e) => setCreateForm(f => ({ ...f, branch_id: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm">
-                  <option value="">Pilih cabang</option>
-                  {branches.map(b => <option key={b.id} value={b.id}>{b.branch_name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Jumlah Diajukan *</label>
-                <input type="number" value={createForm.amount_requested} onChange={(e) => setCreateForm(f => ({ ...f, amount_requested: e.target.value }))} placeholder="500000" className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">COA Kas Kecil *</label>
-                <select value={createForm.petty_cash_coa_id} onChange={(e) => setCreateForm(f => ({ ...f, petty_cash_coa_id: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm">
-                  <option value="">Pilih akun</option>
-                  {pettyCashCoaOptions.map(c => <option key={c.id} value={c.id}>{c.account_code} — {c.account_name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Keterangan</label>
-                <textarea value={createForm.description} onChange={(e) => setCreateForm(f => ({ ...f, description: e.target.value }))} rows={2} className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm" />
-              </div>
-            </div>
-            <div className="flex justify-end gap-2 pt-2">
-              <button onClick={() => setShowCreate(false)} className="px-4 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700">Batal</button>
-              <button onClick={handleCreate} disabled={createMutation.isPending} className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
-                {createMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Buat Request'}
-              </button>
-            </div>
-          </div>
-        </div>
+      {createRequest.isOpen && (
+        <PettyCashCreateModal
+          onClose={createRequest.close}
+          form={createRequest.form}
+          setForm={createRequest.setForm}
+          onSubmit={createRequest.handleSubmit}
+          isPending={createRequest.isPending}
+          branches={branches}
+          pettyCashCoaOptions={pettyCashCoaOptions}
+        />
       )}
     </div>
   )

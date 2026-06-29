@@ -3,7 +3,7 @@ import { X, Loader2 } from 'lucide-react'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
 import { useCompanyBankAccounts } from '@/features/ap-payments/hooks/useCompanyBankAccounts'
-import { useApprovePettyCashRequest } from '../api/pettyCash.api'
+import { useApprovePettyCashRequest } from '../hooks/pettyCash.api'
 
 interface PettyCashApproveModalProps {
   open: boolean
@@ -30,7 +30,7 @@ export function PettyCashApproveModal({ open, onClose, requestId, defaultAmount 
       })
       toast.success('Request disetujui & dicairkan')
       onClose()
-    } catch (err) { toast.error(parseApiError(err, 'Gagal approve')) }
+    } catch (err) { toast.error(parseApiError(err, 'Gagal approve request')) }
   }
 
   if (!open) return null

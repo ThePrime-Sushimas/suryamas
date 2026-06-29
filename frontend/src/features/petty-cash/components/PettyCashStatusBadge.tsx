@@ -1,20 +1,21 @@
 import type { PettyCashRequestStatus } from '../types/pettyCash.types'
+import { PETTY_CASH_STATUS_LABELS } from '../types/pettyCash.status'
 
 const CONFIG: Record<PettyCashRequestStatus, { label: string; className: string }> = {
   PENDING: {
-    label: 'Pending',
+    label: PETTY_CASH_STATUS_LABELS.PENDING,
     className: 'bg-yellow-50 text-yellow-700 border-yellow-200/80 dark:bg-yellow-900/30 dark:text-yellow-300 dark:border-transparent',
   },
   DISBURSED: {
-    label: 'Aktif',
+    label: PETTY_CASH_STATUS_LABELS.DISBURSED,
     className: 'bg-blue-50 text-blue-700 border-blue-200/80 dark:bg-blue-900/30 dark:text-blue-300 dark:border-transparent',
   },
   CLOSED: {
-    label: 'Selesai',
+    label: PETTY_CASH_STATUS_LABELS.CLOSED,
     className: 'bg-green-50 text-green-700 border-green-200/80 dark:bg-green-900/30 dark:text-green-300 dark:border-transparent',
   },
   REJECTED: {
-    label: 'Ditolak',
+    label: PETTY_CASH_STATUS_LABELS.REJECTED,
     className: 'bg-red-50 text-red-700 border-red-200/80 dark:bg-red-900/30 dark:text-red-300 dark:border-transparent',
   },
 }

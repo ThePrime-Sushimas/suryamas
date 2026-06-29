@@ -61,20 +61,17 @@ export const usePettyCashExpenses = (requestId: string, params: { page?: number;
 
 export const useCreatePettyCashRequest = () => {
   const qc = useQueryClient()
-  const toast = useToast()
   return useMutation({
     mutationFn: async (body: { branch_id: string; amount_requested: number; petty_cash_coa_id: string; description?: string }) => {
       const { data } = await api.post('/petty-cash', body)
       return data.data as PettyCashRequest
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: KEYS.lists() }),
-    onError: (err) => toast.error(parseApiError(err, 'Gagal membuat request kas kecil')),
   })
 }
 
 export const useApprovePettyCashRequest = () => {
   const qc = useQueryClient()
-  const toast = useToast()
   return useMutation({
     mutationFn: async ({ id, ...dto }: { id: string; source_bank_account_id: number; amount_disbursed: number; notes?: string }) => {
       const { data } = await api.post(`/petty-cash/${id}/approve`, dto)
@@ -84,13 +81,11 @@ export const useApprovePettyCashRequest = () => {
       qc.invalidateQueries({ queryKey: KEYS.detail(vars.id) })
       qc.invalidateQueries({ queryKey: KEYS.lists() })
     },
-    onError: (err) => toast.error(parseApiError(err, 'Gagal approve request')),
   })
 }
 
 export const useRejectPettyCashRequest = () => {
   const qc = useQueryClient()
-  const toast = useToast()
   return useMutation({
     mutationFn: async ({ id, rejection_reason }: { id: string; rejection_reason: string }) => {
       const { data } = await api.post(`/petty-cash/${id}/reject`, { rejection_reason })
@@ -100,7 +95,6 @@ export const useRejectPettyCashRequest = () => {
       qc.invalidateQueries({ queryKey: KEYS.detail(vars.id) })
       qc.invalidateQueries({ queryKey: KEYS.lists() })
     },
-    onError: (err) => toast.error(parseApiError(err, 'Gagal reject request')),
   })
 }
 
@@ -108,7 +102,6 @@ export const useRejectPettyCashRequest = () => {
 
 export const useCreateExpense = () => {
   const qc = useQueryClient()
-  const toast = useToast()
   return useMutation({
     mutationFn: async ({ requestId, ...dto }: {
       requestId: string
@@ -136,13 +129,11 @@ export const useCreateExpense = () => {
       qc.invalidateQueries({ queryKey: KEYS.detail(vars.requestId) })
       qc.invalidateQueries({ queryKey: KEYS.expenses(vars.requestId) })
     },
-    onError: (err) => toast.error(parseApiError(err, 'Gagal menambah expense')),
   })
 }
 
 export const useUpdateExpense = () => {
   const qc = useQueryClient()
-  const toast = useToast()
   return useMutation({
     mutationFn: async ({ id, requestId, ...dto }: { id: string; requestId: string } & UpdateExpenseDto) => {
       const { data } = await api.put(`/petty-cash/expenses/${id}`, dto)
@@ -152,7 +143,6 @@ export const useUpdateExpense = () => {
       qc.invalidateQueries({ queryKey: KEYS.detail(vars.requestId) })
       qc.invalidateQueries({ queryKey: KEYS.expenses(vars.requestId) })
     },
-    onError: (err) => toast.error(parseApiError(err, 'Gagal memperbarui expense')),
   })
 }
 
@@ -169,7 +159,6 @@ export const useDeleteExpense = () => {
       qc.invalidateQueries({ queryKey: KEYS.expenses(vars.requestId) })
       toast.success('Expense dihapus')
     },
-    onError: (err) => toast.error(parseApiError(err, 'Gagal menghapus expense')),
   })
 }
 
@@ -177,7 +166,6 @@ export const useDeleteExpense = () => {
 
 export const useCreateSettlement = () => {
   const qc = useQueryClient()
-  const toast = useToast()
   return useMutation({
     mutationFn: async ({ requestId, ...dto }: {
       requestId: string
@@ -195,7 +183,6 @@ export const useCreateSettlement = () => {
       qc.invalidateQueries({ queryKey: KEYS.detail(vars.requestId) })
       qc.invalidateQueries({ queryKey: KEYS.lists() })
     },
-    onError: (err) => toast.error(parseApiError(err, 'Gagal membuat settlement')),
   })
 }
 
@@ -219,7 +206,6 @@ export const useVoidSettlement = () => {
 
 export const useUploadPettyCashReceipt = () => {
   const qc = useQueryClient()
-  const toast = useToast()
   return useMutation({
     mutationFn: async ({ expenseId, file, requestId }: { expenseId: string; file: File; requestId: string }) => {
       const formData = new FormData()
@@ -234,8 +220,6 @@ export const useUploadPettyCashReceipt = () => {
     onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: KEYS.detail(vars.requestId) })
       qc.invalidateQueries({ queryKey: KEYS.expenses(vars.requestId) })
-      toast.success('Struk berhasil diupload')
     },
-    onError: (err) => toast.error(parseApiError(err, 'Gagal mengupload struk')),
   })
 }

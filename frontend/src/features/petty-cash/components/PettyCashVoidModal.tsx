@@ -3,7 +3,7 @@ import { Loader2, AlertCircle } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
-import { useVoidSettlement } from '../api/pettyCash.api'
+import { useVoidSettlement } from '../hooks/pettyCash.api'
 
 interface PettyCashVoidModalProps {
   open: boolean
