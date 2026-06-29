@@ -10,7 +10,7 @@ interface ThemeConfig {
 
 const DEFAULT_CONFIG: ThemeConfig = {
   preset: 'standard',
-  accent: 'indigo',
+  accent: 'sky',
 }
 
 // createContext diberi DEFAULT_CONFIG langsung — bukan null — supaya
@@ -30,7 +30,7 @@ interface ThemeProviderProps {
 
 export function ThemeProvider({
   preset = 'standard',
-  accent = 'indigo',
+  accent = 'sky',
   children,
 }: ThemeProviderProps) {
   return (

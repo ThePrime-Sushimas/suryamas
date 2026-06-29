@@ -58,6 +58,49 @@ const accentIndigo = {
   focusRing: 'focus:ring-indigo-500 dark:focus:ring-indigo-400',
 } as const
 
+// ─── Sky Accent ──────────────────────────────────────────────────────────────
+// Basis: Tailwind sky scale — built-in, tidak perlu custom hex.
+// sky-600 (#0284c7) fresh blue untuk primary actions.
+// Aman dari konflik status color (green=success, red=danger, yellow=warning).
+
+const accentSky = {
+  /** Shade map */
+  50:  { bg: 'bg-sky-50',  text: 'text-sky-50',  border: 'border-sky-50'  },
+  100: { bg: 'bg-sky-100', text: 'text-sky-100', border: 'border-sky-100' },
+  200: { bg: 'bg-sky-200', text: 'text-sky-200', border: 'border-sky-200' },
+  300: { bg: 'bg-sky-300', text: 'text-sky-300', border: 'border-sky-300' },
+  500: { bg: 'bg-sky-500', text: 'text-sky-500', border: 'border-sky-500' },
+  600: { bg: 'bg-sky-600', text: 'text-sky-600', border: 'border-sky-600' },
+  700: { bg: 'bg-sky-700', text: 'text-sky-700', border: 'border-sky-700' },
+
+  /** Dark mode variants */
+  dark: {
+    50:  { bg: 'dark:bg-sky-900/15', text: 'dark:text-sky-300', border: 'dark:border-sky-800/60' },
+    200: { bg: 'dark:bg-sky-900/20', text: 'dark:text-sky-400', border: 'dark:border-sky-700'    },
+    600: { bg: 'dark:bg-sky-700',    text: 'dark:text-white',    border: 'dark:border-sky-600'   },
+  },
+
+  /** Composed classes untuk komponen umum */
+  button: {
+    /** Solid primary button */
+    solid: 'bg-sky-600 hover:bg-sky-700 text-white focus:ring-sky-500 dark:bg-sky-600 dark:hover:bg-sky-500',
+    /** Ghost/outline button */
+    ghost: 'border border-sky-200 dark:border-sky-700 text-sky-700 dark:text-sky-300 hover:bg-sky-50 dark:hover:bg-sky-900/20',
+  },
+
+  /** Surface tint */
+  surface: {
+    page:    'bg-sky-50/30 dark:bg-gray-900',
+    card:    'bg-white dark:bg-gray-800',
+    muted:   'bg-sky-50/50 dark:bg-gray-800/60',
+    border:  'border-sky-200/70 dark:border-slate-600',
+    border2: 'border-2 border-sky-200/70 dark:border-slate-600',
+  },
+
+  /** Focus ring */
+  focusRing: 'focus:ring-sky-500 dark:focus:ring-sky-400',
+} as const
+
 // ─── Rose Accent ─────────────────────────────────────────────────────────────
 // Basis: diekstrak dari ap-payments.theme.ts (rose/pink palette).
 // rose sudah built-in di Tailwind — tidak perlu custom hex.
@@ -105,5 +148,5 @@ const accentRose = {
 
 // ─── Export ───────────────────────────────────────────────────────────────────
 
-export const accents = { indigo: accentIndigo, rose: accentRose } as const
+export const accents = { indigo: accentIndigo, sky: accentSky, rose: accentRose } as const
 export type AccentKey = keyof typeof accents
