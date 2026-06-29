@@ -51,3 +51,12 @@ export type {
   StatusBadgeVariant,
   StatusBadgeSize,
 }                                                         from './StatusBadge'
+
+export { SegmentedControl }                               from './SegmentedControl'
+export type {
+  SegmentedControlProps,
+  SegmentedControlOption,
+}                                                         from './SegmentedControl'
+
+export { FileUpload }                                     from './FileUpload'
+export type { FileUploadProps, FileUploadDisplay }        from './FileUpload'
