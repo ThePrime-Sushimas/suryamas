@@ -99,7 +99,7 @@ export default function PettyCashListPage() {
           <Select
             value={filters.branch_id}
             onChange={(e) => setFilters({ branch_id: e.target.value })}
-            className="min-w-[160px]"
+            className="min-w-40"
           >
             <option value="">Semua cabang</option>
             {branches.map((b) => (

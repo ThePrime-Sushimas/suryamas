@@ -44,7 +44,7 @@ function formatActual(v: number | null): string {
   return fmtQty(v)
 }
 
-function rowFillColor(line: MonthlyStockOpnameLine): number[] | undefined {
+function rowFillColor(line: MonthlyStockOpnameLine): [number, number, number] | undefined {
   if (line.selisih_qty === null || Math.abs(Number(line.selisih_qty)) <= 0.0001) return undefined
   return Number(line.selisih_qty) < 0 ? [254, 226, 226] : [220, 252, 231]
 }
