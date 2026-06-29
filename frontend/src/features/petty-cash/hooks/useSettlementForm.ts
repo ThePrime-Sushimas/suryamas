@@ -7,9 +7,9 @@ import type { PettyCashRequest } from '../types/pettyCash.types'
 
 export type SettlementFormState = {
   settlement_date: string
-  amount_returned: string
+  amount_returned: number | ''
   return_bank_account_id: string
-  refill_amount: string
+  refill_amount: number | ''
   refill_bank_account_id: string
   notes: string
 }
@@ -21,9 +21,9 @@ export function useSettlementForm(requestId: string, request: PettyCashRequest |
 
   const [form, setForm] = useState<SettlementFormState>({
     settlement_date: new Date().toISOString().slice(0, 10),
-    amount_returned: '0',
+    amount_returned: 0,
     return_bank_account_id: '',
-    refill_amount: '0',
+    refill_amount: 0,
     refill_bank_account_id: '',
     notes: '',
   })
@@ -33,8 +33,8 @@ export function useSettlementForm(requestId: string, request: PettyCashRequest |
     return request.total_disbursed - request.total_expenses
   }, [request])
 
-  const amountReturned = Number(form.amount_returned) || 0
-  const refillAmount = Number(form.refill_amount) || 0
+  const amountReturned = form.amount_returned === '' ? 0 : form.amount_returned
+  const refillAmount = form.refill_amount === '' ? 0 : form.refill_amount
   const carriedToAmount = Math.max(0, remaining - amountReturned)
   const totalDanaBaru = carriedToAmount + refillAmount
 

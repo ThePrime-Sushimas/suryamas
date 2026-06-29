@@ -1,4 +1,5 @@
 import { Plus, Search, X, Loader2 } from 'lucide-react'
+import { Button, Input, Select, DateInput } from '@/components/ui'
 import { Pagination } from '@/components/ui/Pagination'
 import { useUrlFilters, useListNavigation } from '@/lib/urlFilters'
 import { usePermissionStore } from '@/features/branch_context/store/permission.store'
@@ -49,70 +50,124 @@ export default function PettyCashListPage() {
   const rows = data?.data ?? []
   const pagination = data?.pagination
 
-  const hasActiveFilters = filters.branch_id || filters.status || filters.date_from || filters.date_to || filters.search
+  const hasActiveFilters =
+    filters.branch_id || filters.status || filters.date_from || filters.date_to || filters.search
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-4">
-      {/* Header */}
+    <div className="mx-auto max-w-7xl space-y-4 p-6">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Kas Kecil</h1>
         {canInsert && (
-          <button onClick={createRequest.open} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700">
-            <Plus className="w-4 h-4" /> Buat Request
-          </button>
+          <Button variant="primary" leftIcon={<Plus className="h-4 w-4" />} onClick={createRequest.open}>
+            Buat Request
+          </Button>
         )}
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-wrap gap-3 items-end">
-        <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="relative min-w-[200px] flex-1">
+          <Input
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             placeholder="Cari no. request..."
-            className="w-full pl-9 pr-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm"
+            leftIcon={<Search className="h-4 w-4" />}
+            className={searchInput ? 'pr-9' : undefined}
           />
           {searchInput && (
-            <button onClick={() => setSearchInput('')} className="absolute right-3 top-1/2 -translate-y-1/2">
-              <X className="w-4 h-4 text-gray-400" />
+            <button
+              type="button"
+              onClick={() => setSearchInput('')}
+              className="absolute right-3 top-1/2 z-10 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              aria-label="Hapus pencarian"
+            >
+              <X className="h-4 w-4" />
             </button>
           )}
         </div>
-        <select value={filters.branch_id} onChange={(e) => setFilters({ branch_id: e.target.value })} className="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
+
+        <Select
+          value={filters.branch_id}
+          onChange={(e) => setFilters({ branch_id: e.target.value })}
+          className="min-w-[160px]"
+        >
           <option value="">Semua cabang</option>
-          {branches.map(b => <option key={b.id} value={b.id}>{b.branch_name}</option>)}
-        </select>
-        <select value={filters.status} onChange={(e) => setFilters({ status: e.target.value as any })} className="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm">
-          {STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
-        <input type="date" value={filters.date_from} onChange={(e) => setFilters({ date_from: e.target.value })} className="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm" />
-        <input type="date" value={filters.date_to} onChange={(e) => setFilters({ date_to: e.target.value })} className="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm" />
+          {branches.map((b) => (
+            <option key={b.id} value={b.id}>
+              {b.branch_name}
+            </option>
+          ))}
+        </Select>
+
+        <Select
+          value={filters.status}
+          onChange={(e) =>
+            setFilters({ status: e.target.value as '' | PettyCashRequestStatus })
+          }
+          className="min-w-[140px]"
+        >
+          {STATUS_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </Select>
+
+        <DateInput
+          value={filters.date_from}
+          onChange={(e) => setFilters({ date_from: e.target.value })}
+          className="w-auto"
+          aria-label="Tanggal dari"
+        />
+
+        <DateInput
+          value={filters.date_to}
+          onChange={(e) => setFilters({ date_to: e.target.value })}
+          className="w-auto"
+          aria-label="Tanggal sampai"
+        />
+
         {hasActiveFilters && (
-          <button onClick={resetFilters} className="px-3 py-2 rounded-lg text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700">
+          <Button variant="ghost" size="sm" onClick={resetFilters}>
             Reset
-          </button>
+          </Button>
         )}
       </div>
 
-      {/* Table */}
       {isLoading ? (
-        <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>
+        <div className="flex justify-center py-12">
+          <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+        </div>
       ) : rows.length === 0 ? (
-        <div className="text-center py-12 text-gray-500 dark:text-gray-400">Tidak ada data</div>
+        <div className="py-12 text-center text-gray-500 dark:text-gray-400">Tidak ada data</div>
       ) : (
-        <div className="overflow-x-auto bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700">
+        <div className="overflow-x-auto rounded-xl border border-gray-100 bg-white dark:border-gray-700 dark:bg-gray-800">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-700/30">
-                <th className="px-3 py-2.5 text-left font-medium text-gray-600 dark:text-gray-300">No. Request</th>
-                <th className="px-3 py-2.5 text-left font-medium text-gray-600 dark:text-gray-300">Cabang</th>
-                <th className="px-3 py-2.5 text-left font-medium text-gray-600 dark:text-gray-300">Status</th>
-                <th className="px-3 py-2.5 text-left font-medium text-gray-600 dark:text-gray-300">Tgl Dibuat</th>
-                <th className="px-3 py-2.5 text-right font-medium text-gray-600 dark:text-gray-300">Diajukan</th>
-                <th className="px-3 py-2.5 text-right font-medium text-gray-600 dark:text-gray-300">Dicairkan</th>
-                <th className="px-3 py-2.5 text-right font-medium text-gray-600 dark:text-gray-300">Expense</th>
-                <th className="px-3 py-2.5 text-right font-medium text-gray-600 dark:text-gray-300">Sisa</th>
+              <tr className="border-b border-gray-100 bg-gray-50/50 dark:border-gray-700 dark:bg-gray-700/30">
+                <th className="px-3 py-2.5 text-left font-medium text-gray-600 dark:text-gray-300">
+                  No. Request
+                </th>
+                <th className="px-3 py-2.5 text-left font-medium text-gray-600 dark:text-gray-300">
+                  Cabang
+                </th>
+                <th className="px-3 py-2.5 text-left font-medium text-gray-600 dark:text-gray-300">
+                  Status
+                </th>
+                <th className="px-3 py-2.5 text-left font-medium text-gray-600 dark:text-gray-300">
+                  Tgl Dibuat
+                </th>
+                <th className="px-3 py-2.5 text-right font-medium text-gray-600 dark:text-gray-300">
+                  Diajukan
+                </th>
+                <th className="px-3 py-2.5 text-right font-medium text-gray-600 dark:text-gray-300">
+                  Dicairkan
+                </th>
+                <th className="px-3 py-2.5 text-right font-medium text-gray-600 dark:text-gray-300">
+                  Expense
+                </th>
+                <th className="px-3 py-2.5 text-right font-medium text-gray-600 dark:text-gray-300">
+                  Sisa
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -122,16 +177,30 @@ export default function PettyCashListPage() {
                   <tr
                     key={r.id}
                     onClick={() => openDetail(r.id)}
-                    className="border-b border-gray-50 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700/30 cursor-pointer"
+                    className="cursor-pointer border-b border-gray-50 hover:bg-gray-50 dark:border-gray-700/50 dark:hover:bg-gray-700/30"
                   >
-                    <td className="px-3 py-2.5 font-medium text-gray-900 dark:text-white">{r.request_number}</td>
+                    <td className="px-3 py-2.5 font-medium text-gray-900 dark:text-white">
+                      {r.request_number}
+                    </td>
                     <td className="px-3 py-2.5 text-gray-600 dark:text-gray-400">{r.branch_name}</td>
-                    <td className="px-3 py-2.5"><PettyCashStatusBadge status={r.status} /></td>
-                    <td className="px-3 py-2.5 text-gray-600 dark:text-gray-400">{fmtDate(r.created_at)}</td>
-                    <td className="px-3 py-2.5 text-right text-gray-700 dark:text-gray-300">{fmtCurrency(r.amount_requested)}</td>
-                    <td className="px-3 py-2.5 text-right text-gray-700 dark:text-gray-300">{fmtCurrency(r.amount_disbursed)}</td>
-                    <td className="px-3 py-2.5 text-right text-gray-700 dark:text-gray-300">{fmtCurrency(r.total_expenses)}</td>
-                    <td className="px-3 py-2.5 text-right font-medium text-gray-900 dark:text-white">{fmtCurrency(remaining > 0 ? remaining : 0)}</td>
+                    <td className="px-3 py-2.5">
+                      <PettyCashStatusBadge status={r.status} />
+                    </td>
+                    <td className="px-3 py-2.5 text-gray-600 dark:text-gray-400">
+                      {fmtDate(r.created_at)}
+                    </td>
+                    <td className="px-3 py-2.5 text-right text-gray-700 dark:text-gray-300">
+                      {fmtCurrency(r.amount_requested)}
+                    </td>
+                    <td className="px-3 py-2.5 text-right text-gray-700 dark:text-gray-300">
+                      {fmtCurrency(r.amount_disbursed)}
+                    </td>
+                    <td className="px-3 py-2.5 text-right text-gray-700 dark:text-gray-300">
+                      {fmtCurrency(r.total_expenses)}
+                    </td>
+                    <td className="px-3 py-2.5 text-right font-medium text-gray-900 dark:text-white">
+                      {fmtCurrency(remaining > 0 ? remaining : 0)}
+                    </td>
                   </tr>
                 )
               })}

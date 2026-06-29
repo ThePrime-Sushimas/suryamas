@@ -5,7 +5,7 @@ import { useCreatePettyCashRequest } from './pettyCash.api'
 
 export type CreatePettyCashRequestForm = {
   branch_id: string
-  amount_requested: string
+  amount_requested: number | ''
   petty_cash_coa_id: string
   description: string
 }
@@ -27,14 +27,14 @@ export function useCreatePettyCashRequestForm() {
   const close = () => setIsOpen(false)
 
   const handleSubmit = async () => {
-    if (!form.branch_id || !form.amount_requested || !form.petty_cash_coa_id) {
+    if (!form.branch_id || form.amount_requested === '' || !form.petty_cash_coa_id) {
       toast.error('Cabang, jumlah, dan COA kas kecil wajib diisi')
       return
     }
     try {
       await createMutation.mutateAsync({
         branch_id: form.branch_id,
-        amount_requested: Number(form.amount_requested),
+        amount_requested: form.amount_requested,
         petty_cash_coa_id: form.petty_cash_coa_id,
         description: form.description || undefined,
       })

@@ -1,5 +1,6 @@
 import { Camera, Trash2 } from 'lucide-react'
 import type { RefObject } from 'react'
+import { FormField } from '@/components/ui'
 
 export interface ExpenseReceiptEditorProps {
   receiptPreview: string | null
@@ -15,27 +16,29 @@ export function ExpenseReceiptEditor({
   onFileChange,
 }: ExpenseReceiptEditorProps) {
   return (
-    <div>
-      <label className="block text-xs font-medium text-gray-500 mb-1">Foto Struk</label>
+    <FormField label="Foto Struk">
       {(receiptPreview || receiptFile) && (
-        <div className="mb-2 relative inline-block">
+        <div className="relative mb-2 inline-block">
           <img
             src={receiptFile ? URL.createObjectURL(receiptFile) : receiptPreview ?? ''}
             alt="Receipt"
-            className="w-48 h-36 object-cover rounded-lg border border-gray-200"
+            className="h-36 w-48 rounded-lg border border-gray-200 object-cover"
           />
           {receiptFile && (
             <button
+              type="button"
               onClick={() => onFileChange(null)}
-              className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-0.5"
+              className="absolute -right-2 -top-2 rounded-full bg-red-500 p-0.5 text-white"
             >
-              <Trash2 className="w-3.5 h-3.5" />
+              <Trash2 className="h-3.5 w-3.5" />
             </button>
           )}
         </div>
       )}
       {receiptPreview && !receiptFile && (
-        <p className="text-xs text-gray-400 mb-1">Foto sudah ada. Upload ulang untuk mengganti.</p>
+        <p className="mb-1 text-xs text-gray-400">
+          Foto sudah ada. Upload ulang untuk mengganti.
+        </p>
       )}
       <input
         type="file"
@@ -50,10 +53,11 @@ export function ExpenseReceiptEditor({
       <button
         type="button"
         onClick={() => fileInputRef.current?.click()}
-        className="w-full px-3 py-2 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 text-sm text-gray-500 hover:border-blue-400 hover:text-blue-600 transition-colors flex items-center justify-center gap-2"
+        className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-gray-300 px-3 py-2 text-sm text-gray-500 transition-colors hover:border-blue-400 hover:text-blue-600 dark:border-gray-600"
       >
-        <Camera className="w-4 h-4" /> {receiptPreview ? 'Ganti foto struk' : 'Upload foto struk (opsional)'}
+        <Camera className="h-4 w-4" />{' '}
+        {receiptPreview ? 'Ganti foto struk' : 'Upload foto struk (opsional)'}
       </button>
-    </div>
+    </FormField>
   )
 }

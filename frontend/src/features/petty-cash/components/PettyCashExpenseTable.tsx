@@ -1,5 +1,6 @@
-import { Trash2, Pencil, ExternalLink } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Trash2, Pencil, ExternalLink } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { Button } from '@/components/ui'
 import type {
   PettyCashExpense,
   PettyCashRequestStatus,
@@ -149,20 +150,24 @@ export function PettyCashExpenseTable({
                     <td className="px-3 py-2 text-center">
                       {!e.settlement_id && (
                         <div className="flex items-center justify-center gap-1">
-                          <button
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             onClick={() => onEdit(e)}
-                            className="p-1 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20"
                             title="Edit"
+                            className="h-8 w-8 p-0"
                           >
-                            <Pencil className="w-3.5 h-3.5 text-blue-500" />
-                          </button>
-                          <button
+                            <Pencil className="h-3.5 w-3.5 text-blue-500" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             onClick={() => onDelete(e.id)}
-                            className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20"
                             title="Hapus"
+                            className="h-8 w-8 p-0"
                           >
-                            <Trash2 className="w-3.5 h-3.5 text-red-500" />
-                          </button>
+                            <Trash2 className="h-3.5 w-3.5 text-red-500" />
+                          </Button>
                         </div>
                       )}
                     </td>

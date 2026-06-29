@@ -18,7 +18,7 @@ export type ExpenseFormState = {
   category_id: string
   sub_category_id: string
   expense_date: string
-  amount: string
+  amount: number | ''
   description: string
   product_id: string
   warehouse_id: string
@@ -28,7 +28,7 @@ export type ExpenseFormState = {
   asset_name: string
   asset_qty: string
   useful_life_months: string
-  salvage_value: string
+  salvage_value: number | ''
   expense_coa_id: string
 }
 
@@ -211,7 +211,7 @@ export function useExpenseFormModal(
       expense_coa_id: assetCat?.asset_coa_id ?? f.expense_coa_id,
       asset_qty: '1',
       unit_price: product.average_cost > 0 ? String(product.average_cost) : '',
-      amount: product.average_cost > 0 ? String(product.average_cost) : '',
+      amount: product.average_cost > 0 ? product.average_cost : '',
     }))
     setSelectedAssetProduct({
       id: product.id,
@@ -222,7 +222,7 @@ export function useExpenseFormModal(
   }
 
   const handleSubmit = async () => {
-    if (!expenseForm.amount || Number(expenseForm.amount) <= 0) {
+    if (expenseForm.amount === '' || expenseForm.amount <= 0) {
       toast.error('Jumlah wajib > 0'); return
     }
     if (expenseMode === 'operational' && !expenseForm.category_id) {
@@ -252,7 +252,7 @@ export function useExpenseFormModal(
         category_id: expenseForm.category_id,
         sub_category_id: expenseForm.sub_category_id || undefined,
         expense_date: expenseForm.expense_date || undefined,
-        amount: Number(expenseForm.amount),
+        amount: expenseForm.amount,
         description: expenseForm.description || undefined,
         product_id: expenseMode === 'product'
           ? (expenseForm.product_id || undefined)
@@ -275,7 +275,9 @@ export function useExpenseFormModal(
           ? (selectedAssetCategory?.tracking_method === 'POOLED' ? Number(expenseForm.asset_qty) : 1)
           : undefined,
         useful_life_months: expenseMode === 'asset' && expenseForm.useful_life_months ? Number(expenseForm.useful_life_months) : undefined,
-        salvage_value: expenseMode === 'asset' && expenseForm.salvage_value ? Number(expenseForm.salvage_value) : undefined,
+        salvage_value: expenseMode === 'asset' && expenseForm.salvage_value !== ''
+          ? expenseForm.salvage_value
+          : undefined,
         expense_coa_id: expenseMode === 'asset' ? (expenseForm.expense_coa_id || undefined) : undefined,
       })
 

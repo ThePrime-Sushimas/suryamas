@@ -1,4 +1,5 @@
 import type { Dispatch, SetStateAction } from 'react'
+import { FormField, Select } from '@/components/ui'
 import type { Category, SubCategory } from '@/features/categories/types'
 import type { ExpenseFormState } from '../../hooks/useExpenseFormModal'
 
@@ -16,23 +17,52 @@ export function OperationalExpenseFields({
   subCategories,
 }: OperationalExpenseFieldsProps) {
   return (
-    <>
-      <div>
-        <label className="block text-xs font-medium text-gray-500 mb-1">Kategori Pengeluaran *</label>
-        <select value={expenseForm.category_id} onChange={(e) => setExpenseForm(f => ({ ...f, category_id: e.target.value, sub_category_id: '' }))} className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm">
-          <option value="">Pilih kategori</option>
-          {categories.map(c => <option key={c.id} value={c.id}>{c.category_code} — {c.category_name}</option>)}
-        </select>
-      </div>
+    <div className="space-y-4">
+      <FormField label="Kategori Pengeluaran" required>
+        {({ inputId, describedBy }) => (
+          <Select
+            id={inputId}
+            aria-describedby={describedBy}
+            value={expenseForm.category_id}
+            onChange={(e) =>
+              setExpenseForm((f) => ({
+                ...f,
+                category_id: e.target.value,
+                sub_category_id: '',
+              }))
+            }
+          >
+            <option value="">Pilih kategori</option>
+            {categories.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.category_code} — {c.category_name}
+              </option>
+            ))}
+          </Select>
+        )}
+      </FormField>
+
       {expenseForm.category_id && subCategories.length > 0 && (
-        <div>
-          <label className="block text-xs font-medium text-gray-500 mb-1">Sub-kategori</label>
-          <select value={expenseForm.sub_category_id} onChange={(e) => setExpenseForm(f => ({ ...f, sub_category_id: e.target.value }))} className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm">
-            <option value="">—</option>
-            {subCategories.map(sc => <option key={sc.id} value={sc.id}>{sc.sub_category_name}</option>)}
-          </select>
-        </div>
+        <FormField label="Sub-kategori">
+          {({ inputId, describedBy }) => (
+            <Select
+              id={inputId}
+              aria-describedby={describedBy}
+              value={expenseForm.sub_category_id}
+              onChange={(e) =>
+                setExpenseForm((f) => ({ ...f, sub_category_id: e.target.value }))
+              }
+            >
+              <option value="">—</option>
+              {subCategories.map((sc) => (
+                <option key={sc.id} value={sc.id}>
+                  {sc.sub_category_name}
+                </option>
+              ))}
+            </Select>
+          )}
+        </FormField>
       )}
-    </>
+    </div>
   )
 }

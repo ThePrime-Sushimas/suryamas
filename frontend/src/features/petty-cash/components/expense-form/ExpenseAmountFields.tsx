@@ -1,4 +1,5 @@
 import type { Dispatch, SetStateAction } from 'react'
+import { FormField, Input, CurrencyInput } from '@/components/ui'
 import type { AssetCategory } from '@/features/fixed-assets/api/fixed-assets.api'
 import type { ProductUom } from '@/features/product-uoms/types'
 import type {
@@ -22,6 +23,13 @@ export interface ExpenseAmountFieldsProps {
   baseUomName: string
 }
 
+function lineTotal(qty: string, unitPrice: string): number | '' {
+  const q = Number(qty)
+  const up = Number(unitPrice)
+  if (!qty || !unitPrice || !q || !up) return ''
+  return q * up
+}
+
 export function ExpenseAmountFields({
   expenseMode,
   expenseForm,
@@ -39,30 +47,71 @@ export function ExpenseAmountFields({
     return (
       <div className="space-y-1.5">
         <div className="grid grid-cols-3 gap-3">
-          <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Qty ({uomName})</label>
-            <input type="number" value={expenseForm.qty} onChange={(e) => {
-              const qty = e.target.value
-              const up = Number(expenseForm.unit_price) || 0
-              setExpenseForm(f => ({ ...f, qty, amount: qty && up ? String(Number(qty) * up) : f.amount }))
-            }} placeholder="0" className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm" />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Harga/{uomName}</label>
-            <input type="number" value={expenseForm.unit_price} onChange={(e) => {
-              const up = e.target.value
-              const qty = Number(expenseForm.qty) || 0
-              setExpenseForm(f => ({ ...f, unit_price: up, amount: up && qty ? String(Number(up) * qty) : f.amount }))
-            }} placeholder="0" className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm" />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Total *</label>
-            <input type="number" value={expenseForm.amount} onChange={(e) => setExpenseForm(f => ({ ...f, amount: e.target.value }))} placeholder="0" className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm font-medium" />
-          </div>
+          <FormField label={`Qty (${uomName})`}>
+            {({ inputId, describedBy }) => (
+              <Input
+                id={inputId}
+                aria-describedby={describedBy}
+                type="number"
+                value={expenseForm.qty}
+                onChange={(e) => {
+                  const qty = e.target.value
+                  const computed = lineTotal(qty, expenseForm.unit_price)
+                  setExpenseForm((f) => ({
+                    ...f,
+                    qty,
+                    amount: computed !== '' ? computed : f.amount,
+                  }))
+                }}
+                placeholder="0"
+                min="0"
+              />
+            )}
+          </FormField>
+
+          <FormField label={`Harga/${uomName}`}>
+            {({ inputId, describedBy }) => (
+              <Input
+                id={inputId}
+                aria-describedby={describedBy}
+                type="number"
+                value={expenseForm.unit_price}
+                onChange={(e) => {
+                  const unit_price = e.target.value
+                  const computed = lineTotal(expenseForm.qty, unit_price)
+                  setExpenseForm((f) => ({
+                    ...f,
+                    unit_price,
+                    amount: computed !== '' ? computed : f.amount,
+                  }))
+                }}
+                placeholder="0"
+                min="0"
+              />
+            )}
+          </FormField>
+
+          <FormField label="Total" required>
+            {({ inputId, describedBy }) => (
+              <CurrencyInput
+                id={inputId}
+                aria-describedby={describedBy}
+                value={expenseForm.amount}
+                onChange={(value) =>
+                  setExpenseForm((f) => ({ ...f, amount: value }))
+                }
+              />
+            )}
+          </FormField>
         </div>
+
         {trackInventory && activeUom && (
-          <div className="text-xs text-blue-600 dark:text-blue-400 mt-1 bg-blue-50/50 dark:bg-blue-950/20 p-2 rounded-lg border border-blue-100 dark:border-blue-900/50">
-            Masuk gudang: <strong className="font-semibold">{(Number(expenseForm.qty) || 0) * conversionFactor} {baseUomName}</strong> (Satuan Base)
+          <div className="mt-1 rounded-lg border border-blue-100 bg-blue-50/50 p-2 text-xs text-blue-600 dark:border-blue-900/50 dark:bg-blue-950/20 dark:text-blue-400">
+            Masuk gudang:{' '}
+            <strong className="font-semibold">
+              {(Number(expenseForm.qty) || 0) * conversionFactor} {baseUomName}
+            </strong>{' '}
+            (Satuan Base)
           </div>
         )}
       </div>
@@ -70,68 +119,87 @@ export function ExpenseAmountFields({
   }
 
   if (expenseMode === 'asset' && selectedAssetProduct) {
+    const isPooled = selectedAssetCategory?.tracking_method === 'POOLED'
+
     return (
       <div className="grid grid-cols-3 gap-3">
-        <div>
-          <label className="block text-xs font-medium text-gray-500 mb-1">
-            Qty {selectedAssetCategory?.tracking_method === 'POOLED' ? '*' : ''}
-          </label>
-          <input
-            type="number"
-            value={expenseForm.asset_qty}
-            disabled={selectedAssetCategory?.tracking_method !== 'POOLED'}
-            onChange={(e) => {
-              const qty = e.target.value
-              const up = Number(expenseForm.unit_price) || 0
-              setExpenseForm(f => ({
-                ...f,
-                asset_qty: qty,
-                amount: qty && up ? String(Number(qty) * up) : f.amount,
-              }))
-            }}
-            placeholder="1"
-            className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm disabled:bg-gray-50 disabled:text-gray-500 dark:disabled:bg-gray-900/50"
-          />
-          {selectedAssetCategory?.tracking_method !== 'POOLED' && (
-            <p className="text-[10px] text-gray-400 mt-0.5">INDIVIDUAL: qty tetap 1</p>
+        <FormField
+          label="Qty"
+          required={isPooled}
+          helperText={!isPooled ? 'INDIVIDUAL: qty tetap 1' : undefined}
+        >
+          {({ inputId, describedBy }) => (
+            <Input
+              id={inputId}
+              aria-describedby={describedBy}
+              type="number"
+              value={expenseForm.asset_qty}
+              disabled={!isPooled}
+              onChange={(e) => {
+                const asset_qty = e.target.value
+                const computed = lineTotal(asset_qty, expenseForm.unit_price)
+                setExpenseForm((f) => ({
+                  ...f,
+                  asset_qty,
+                  amount: computed !== '' ? computed : f.amount,
+                }))
+              }}
+              placeholder="1"
+              min="0"
+            />
           )}
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-500 mb-1">Harga Satuan</label>
-          <input
-            type="number"
-            value={expenseForm.unit_price}
-            onChange={(e) => {
-              const up = e.target.value
-              const qty = Number(expenseForm.asset_qty) || 0
-              setExpenseForm(f => ({
-                ...f,
-                unit_price: up,
-                amount: up && qty ? String(Number(up) * qty) : f.amount,
-              }))
-            }}
-            placeholder="0"
-            className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm"
-          />
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-500 mb-1">Total *</label>
-          <input
-            type="number"
-            value={expenseForm.amount}
-            onChange={(e) => setExpenseForm(f => ({ ...f, amount: e.target.value }))}
-            placeholder="0"
-            className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm font-medium"
-          />
-        </div>
+        </FormField>
+
+        <FormField label="Harga Satuan">
+          {({ inputId, describedBy }) => (
+            <Input
+              id={inputId}
+              aria-describedby={describedBy}
+              type="number"
+              value={expenseForm.unit_price}
+              onChange={(e) => {
+                const unit_price = e.target.value
+                const computed = lineTotal(expenseForm.asset_qty, unit_price)
+                setExpenseForm((f) => ({
+                  ...f,
+                  unit_price,
+                  amount: computed !== '' ? computed : f.amount,
+                }))
+              }}
+              placeholder="0"
+              min="0"
+            />
+          )}
+        </FormField>
+
+        <FormField label="Total" required>
+          {({ inputId, describedBy }) => (
+            <CurrencyInput
+              id={inputId}
+              aria-describedby={describedBy}
+              value={expenseForm.amount}
+              onChange={(value) =>
+                setExpenseForm((f) => ({ ...f, amount: value }))
+              }
+            />
+          )}
+        </FormField>
       </div>
     )
   }
 
   return (
-    <div>
-      <label className="block text-xs font-medium text-gray-500 mb-1">Jumlah *</label>
-      <input type="number" value={expenseForm.amount} onChange={(e) => setExpenseForm(f => ({ ...f, amount: e.target.value }))} placeholder="0" className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm" />
-    </div>
+    <FormField label="Jumlah" required>
+      {({ inputId, describedBy }) => (
+        <CurrencyInput
+          id={inputId}
+          aria-describedby={describedBy}
+          value={expenseForm.amount}
+          onChange={(value) =>
+            setExpenseForm((f) => ({ ...f, amount: value }))
+          }
+        />
+      )}
+    </FormField>
   )
 }

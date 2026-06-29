@@ -1,4 +1,11 @@
 import type { Dispatch, SetStateAction } from 'react'
+import {
+  FormField,
+  DateInput,
+  CurrencyInput,
+  Select,
+  Textarea,
+} from '@/components/ui'
 import type { CompanyBankAccount } from '@/features/ap-payments/hooks/useCompanyBankAccounts'
 import type { SettlementFormState } from '../hooks/useSettlementForm'
 
@@ -18,110 +25,107 @@ export function SettlementForm({
   bankAccounts,
 }: SettlementFormProps) {
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-5 space-y-4">
-      <div>
-        <label className="block text-xs font-medium text-gray-500 mb-1">
-          Tanggal Settlement
-        </label>
-        <input
-          type="date"
-          value={form.settlement_date}
-          onChange={(e) =>
-            setForm((f) => ({ ...f, settlement_date: e.target.value }))
-          }
-          className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm"
-        />
-      </div>
+    <div className="space-y-4 rounded-xl border border-gray-100 bg-white p-5 dark:border-gray-700 dark:bg-gray-800">
+      <FormField label="Tanggal Settlement">
+        {({ inputId, describedBy }) => (
+          <DateInput
+            id={inputId}
+            aria-describedby={describedBy}
+            value={form.settlement_date}
+            onChange={(e) =>
+              setForm((f) => ({ ...f, settlement_date: e.target.value }))
+            }
+          />
+        )}
+      </FormField>
 
-      <div>
-        <label className="block text-xs font-medium text-gray-500 mb-1">
-          Jumlah Dikembalikan ke Bank
-        </label>
-        <input
-          type="number"
-          value={form.amount_returned}
-          onChange={(e) =>
-            setForm((f) => ({ ...f, amount_returned: e.target.value }))
-          }
-          min="0"
-          className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm"
-        />
-      </div>
+      <FormField label="Jumlah Dikembalikan ke Bank">
+        {({ inputId, describedBy }) => (
+          <CurrencyInput
+            id={inputId}
+            aria-describedby={describedBy}
+            value={form.amount_returned}
+            onChange={(value) =>
+              setForm((f) => ({ ...f, amount_returned: value }))
+            }
+          />
+        )}
+      </FormField>
+
       {amountReturned > 0 && (
-        <div>
-          <label className="block text-xs font-medium text-gray-500 mb-1">
-            Rekening Pengembalian *
-          </label>
-          <select
-            value={form.return_bank_account_id}
-            onChange={(e) =>
-              setForm((f) => ({
-                ...f,
-                return_bank_account_id: e.target.value,
-              }))
-            }
-            className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm"
-          >
-            <option value="">Pilih rekening</option>
-            {bankAccounts.map((ba) => (
-              <option key={ba.id} value={ba.id}>
-                {ba.bank_name} · {ba.account_number} . {ba.account_name}
-              </option>
-            ))}
-          </select>
-        </div>
+        <FormField label="Rekening Pengembalian" required>
+          {({ inputId, describedBy }) => (
+            <Select
+              id={inputId}
+              aria-describedby={describedBy}
+              value={form.return_bank_account_id}
+              onChange={(e) =>
+                setForm((f) => ({
+                  ...f,
+                  return_bank_account_id: e.target.value,
+                }))
+              }
+            >
+              <option value="">Pilih rekening</option>
+              {bankAccounts.map((ba) => (
+                <option key={ba.id} value={ba.id}>
+                  {ba.bank_name} · {ba.account_number} · {ba.account_name}
+                </option>
+              ))}
+            </Select>
+          )}
+        </FormField>
       )}
 
-      <div>
-        <label className="block text-xs font-medium text-gray-500 mb-1">
-          Jumlah Refill (tambahan dari bank)
-        </label>
-        <input
-          type="number"
-          value={form.refill_amount}
-          onChange={(e) =>
-            setForm((f) => ({ ...f, refill_amount: e.target.value }))
-          }
-          min="0"
-          className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm"
-        />
-      </div>
+      <FormField label="Jumlah Refill (tambahan dari bank)">
+        {({ inputId, describedBy }) => (
+          <CurrencyInput
+            id={inputId}
+            aria-describedby={describedBy}
+            value={form.refill_amount}
+            onChange={(value) =>
+              setForm((f) => ({ ...f, refill_amount: value }))
+            }
+          />
+        )}
+      </FormField>
+
       {refillAmount > 0 && (
-        <div>
-          <label className="block text-xs font-medium text-gray-500 mb-1">
-            Rekening Refill *
-          </label>
-          <select
-            value={form.refill_bank_account_id}
-            onChange={(e) =>
-              setForm((f) => ({
-                ...f,
-                refill_bank_account_id: e.target.value,
-              }))
-            }
-            className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm"
-          >
-            <option value="">Pilih rekening</option>
-            {bankAccounts.map((ba) => (
-              <option key={ba.id} value={ba.id}>
-                {ba.bank_name} · {ba.account_number} . {ba.account_name}
-              </option>
-            ))}
-          </select>
-        </div>
+        <FormField label="Rekening Refill" required>
+          {({ inputId, describedBy }) => (
+            <Select
+              id={inputId}
+              aria-describedby={describedBy}
+              value={form.refill_bank_account_id}
+              onChange={(e) =>
+                setForm((f) => ({
+                  ...f,
+                  refill_bank_account_id: e.target.value,
+                }))
+              }
+            >
+              <option value="">Pilih rekening</option>
+              {bankAccounts.map((ba) => (
+                <option key={ba.id} value={ba.id}>
+                  {ba.bank_name} · {ba.account_number} · {ba.account_name}
+                </option>
+              ))}
+            </Select>
+          )}
+        </FormField>
       )}
 
-      <div>
-        <label className="block text-xs font-medium text-gray-500 mb-1">
-          Catatan
-        </label>
-        <textarea
-          value={form.notes}
-          onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
-          rows={2}
-          className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm"
-        />
-      </div>
+      <FormField label="Catatan">
+        {({ inputId, describedBy }) => (
+          <Textarea
+            id={inputId}
+            aria-describedby={describedBy}
+            rows={2}
+            value={form.notes}
+            onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+          />
+        )}
+      </FormField>
     </div>
   )
 }

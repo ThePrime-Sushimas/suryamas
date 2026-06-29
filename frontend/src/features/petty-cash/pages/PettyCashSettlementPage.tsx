@@ -1,5 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Loader2 } from 'lucide-react'
+import { Button } from '@/components/ui'
 import { useCompanyBankAccounts } from '@/features/ap-payments/hooks/useCompanyBankAccounts'
 import { usePettyCashRequest } from '../hooks/pettyCash.api'
 import { useSettlementForm } from '../hooks/useSettlementForm'
@@ -47,13 +48,16 @@ export default function PettyCashSettlementPage() {
   const expenses = request.expenses ?? []
 
   return (
-    <div className="p-6 max-w-3xl mx-auto space-y-6">
-      <button
+    <div className="mx-auto max-w-3xl space-y-6 p-6">
+      <Button
+        variant="ghost"
+        size="sm"
+        leftIcon={<ArrowLeft className="h-4 w-4" />}
         onClick={() => navigate(`/finance/petty-cash/${id}`)}
-        className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700"
+        className="-ml-2 text-gray-500 hover:text-gray-700 dark:text-gray-400"
       >
-        <ArrowLeft className="w-4 h-4" /> Kembali ke Detail
-      </button>
+        Kembali ke Detail
+      </Button>
 
       <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
         Settlement Kas Kecil
@@ -82,23 +86,16 @@ export default function PettyCashSettlementPage() {
       />
 
       <div className="flex justify-end gap-3">
-        <button
+        <Button
+          variant="secondary"
           onClick={() => navigate(`/finance/petty-cash/${id}`)}
-          className="px-4 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700"
+          disabled={isPending}
         >
           Batal
-        </button>
-        <button
-          onClick={handleSubmit}
-          disabled={isPending}
-          className="px-6 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
-        >
-          {isPending ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : (
-            'Post Settlement'
-          )}
-        </button>
+        </Button>
+        <Button variant="primary" loading={isPending} onClick={handleSubmit}>
+          Post Settlement
+        </Button>
       </div>
     </div>
   )

@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { Loader2, AlertCircle } from 'lucide-react'
+import { AlertCircle } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
+import { Dialog, Button, FormField, Textarea } from '@/components/ui'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
 import { useVoidSettlement } from '../hooks/pettyCash.api'
@@ -37,17 +38,22 @@ export function PettyCashVoidModal({ open, onClose, settlementId, requestId }: P
   }
 
   const handleClose = () => {
+    if (voidMutation.isPending) return
     setErrorMsg(null)
     setReason('')
     onClose()
   }
 
-  if (!open) return null
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={handleClose}>
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
-        <h3 className="text-lg font-semibold text-red-600">Void Settlement</h3>
+    <Dialog
+      isOpen={open}
+      onClose={handleClose}
+      size="md"
+      preventClose={voidMutation.isPending}
+    >
+      <Dialog.Header>Void Settlement</Dialog.Header>
+
+      <Dialog.Body className="space-y-4">
         <p className="text-sm text-gray-600 dark:text-gray-400">
           Ini akan membatalkan settlement dan me-reverse jurnal settlement. Request akan kembali ke status <strong>DISBURSED</strong>.
         </p>
@@ -59,17 +65,32 @@ export function PettyCashVoidModal({ open, onClose, settlementId, requestId }: P
           </div>
         )}
 
-        <div>
-          <label className="block text-xs font-medium text-gray-500 mb-1">Alasan *</label>
-          <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm" />
-        </div>
-        <div className="flex justify-end gap-2">
-          <button onClick={handleClose} className="px-4 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700">Batal</button>
-          <button onClick={handleVoid} disabled={voidMutation.isPending || !reason.trim()} className="px-4 py-2 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700 disabled:opacity-50">
-            {voidMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Void Settlement'}
-          </button>
-        </div>
-      </div>
-    </div>
+        <FormField label="Alasan" required>
+          {({ inputId, describedBy }) => (
+            <Textarea
+              id={inputId}
+              aria-describedby={describedBy}
+              rows={3}
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+            />
+          )}
+        </FormField>
+      </Dialog.Body>
+
+      <Dialog.Footer>
+        <Button variant="secondary" onClick={handleClose} disabled={voidMutation.isPending}>
+          Batal
+        </Button>
+        <Button
+          variant="danger"
+          loading={voidMutation.isPending}
+          disabled={!reason.trim()}
+          onClick={handleVoid}
+        >
+          Void Settlement
+        </Button>
+      </Dialog.Footer>
+    </Dialog>
   )
 }

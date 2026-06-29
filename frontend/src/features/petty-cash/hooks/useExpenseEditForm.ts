@@ -15,7 +15,7 @@ export type ExpenseEditFormState = {
   category_id: string
   sub_category_id: string
   expense_date: string
-  amount: string
+  amount: number | ''
   description: string
   qty: string
   unit_price: string
@@ -101,7 +101,7 @@ export function useExpenseEditForm(
         category_id: expense.category_id ?? '',
         sub_category_id: expense.sub_category_id ?? '',
         expense_date: expense.expense_date ?? '',
-        amount: String(expense.amount ?? ''),
+        amount: expense.amount ?? '',
         description: expense.description ?? '',
         qty: expense.qty != null ? String(expense.qty) : '',
         unit_price: expense.unit_price != null ? String(expense.unit_price) : '',
@@ -132,18 +132,18 @@ export function useExpenseEditForm(
   const handleQtyChange = (qty: string) => {
     const qtyNum = Number(qty) || 0
     const up = Number(form.unit_price) || 0
-    setForm(f => ({ ...f, qty, amount: qtyNum && up ? String(qtyNum * up) : f.amount }))
+    setForm(f => ({ ...f, qty, amount: qtyNum && up ? qtyNum * up : f.amount }))
   }
 
   const handleUnitPriceChange = (unit_price: string) => {
     const up = Number(unit_price) || 0
     const qtyNum = Number(form.qty) || 0
-    setForm(f => ({ ...f, unit_price, amount: up && qtyNum ? String(up * qtyNum) : f.amount }))
+    setForm(f => ({ ...f, unit_price, amount: up && qtyNum ? up * qtyNum : f.amount }))
   }
 
   const handleSubmit = async () => {
     if (!expense) return
-    if (!form.amount || Number(form.amount) <= 0) {
+    if (form.amount === '' || form.amount <= 0) {
       toast.error('Jumlah wajib > 0'); return
     }
     if (!form.category_id) {
@@ -156,7 +156,7 @@ export function useExpenseEditForm(
         category_id: form.category_id,
         sub_category_id: form.sub_category_id || null,
         expense_date: form.expense_date || undefined,
-        amount: Number(form.amount),
+        amount: form.amount,
         description: form.description || null,
         qty: form.qty ? Number(form.qty) : null,
         unit_price: form.unit_price ? Number(form.unit_price) : null,
