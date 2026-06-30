@@ -29,6 +29,10 @@ export const rejectRequestSchema = z.object({
   }),
 })
 
+export const deleteRequestSchema = z.object({
+  params: uuidParam,
+})
+
 export const getRequestSchema = z.object({
   params: uuidParam,
 })

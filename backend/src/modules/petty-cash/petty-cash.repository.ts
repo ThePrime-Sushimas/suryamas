@@ -358,6 +358,14 @@ export class PettyCashRepository {
     )
   }
 
+  async softDeleteRequest(id: string, userId: string, client?: PoolClient): Promise<void> {
+    const db: Queryable = client ?? pool
+    await db.query(
+      `UPDATE petty_cash_requests SET deleted_at = NOW(), is_deleted = true, updated_by = $2, updated_at = NOW() WHERE id = $1 AND deleted_at IS NULL`,
+      [id, userId],
+    )
+  }
+
   // ─── Settlement ─────────────────────────────────────────────────────────────
 
   async findSettlementByRequestId(client: PoolClient, requestId: string): Promise<PettyCashSettlement | null> {

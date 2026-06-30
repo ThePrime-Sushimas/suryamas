@@ -1,3 +1,4 @@
+import { Trash2 } from 'lucide-react'
 import { PettyCashStatusBadge } from './PettyCashStatusBadge'
 import type { PettyCashRequest } from '../types/pettyCash.types'
 import { fmtCurrency, fmtDate } from '../utils/pettyCash.formatters'
@@ -5,9 +6,10 @@ import { fmtCurrency, fmtDate } from '../utils/pettyCash.formatters'
 interface RequestTableDesktopProps {
   rows: PettyCashRequest[]
   onRowClick: (id: string) => void
+  onDelete?: (id: string) => void
 }
 
-export function RequestTableDesktop({ rows, onRowClick }: RequestTableDesktopProps) {
+export function RequestTableDesktop({ rows, onRowClick, onDelete }: RequestTableDesktopProps) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
@@ -37,11 +39,17 @@ export function RequestTableDesktop({ rows, onRowClick }: RequestTableDesktopPro
             <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
               Sisa
             </th>
+            {onDelete && (
+              <th className="px-4 py-3 text-center text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                Aksi
+              </th>
+            )}
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
           {rows.map((r) => {
             const remaining = r.total_disbursed - r.total_expenses
+            const canDelete = (r.status === 'PENDING' || r.status === 'REJECTED')
             return (
               <tr
                 key={r.id}
@@ -70,6 +78,21 @@ export function RequestTableDesktop({ rows, onRowClick }: RequestTableDesktopPro
                 <td className="px-4 py-3 text-right font-medium tabular-nums text-gray-900 dark:text-white">
                   {fmtCurrency(remaining > 0 ? remaining : 0)}
                 </td>
+                {onDelete && canDelete && (
+                  <td className="px-4 py-3 text-center">
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); onDelete(r.id) }}
+                      className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20"
+                      title="Hapus request"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </td>
+                )}
+                {onDelete && !canDelete && (
+                  <td className="px-4 py-3 text-center" />
+                )}
               </tr>
             )
           })}

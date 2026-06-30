@@ -57,6 +57,21 @@ export const usePettyCashExpenses = (requestId: string, params: { page?: number;
     enabled: !!requestId,
   })
 
+export const useDeletePettyCashRequest = () => {
+  const qc = useQueryClient()
+  const toast = useToast()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      await api.delete(`/petty-cash/${id}`)
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: KEYS.lists() })
+      toast.success('Request dihapus')
+    },
+    onError: (err) => toast.error(parseApiError(err, 'Gagal hapus request')),
+  })
+}
+
 // ─── Request Mutations ────────────────────────────────────────────────────────
 
 export const useCreatePettyCashRequest = () => {

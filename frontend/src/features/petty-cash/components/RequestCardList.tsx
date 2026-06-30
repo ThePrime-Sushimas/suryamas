@@ -4,13 +4,14 @@ import type { PettyCashRequest } from '../types/pettyCash.types'
 interface RequestCardListProps {
   rows: PettyCashRequest[]
   onRowClick: (id: string) => void
+  onDelete?: (id: string) => void
 }
 
-export function RequestCardList({ rows, onRowClick }: RequestCardListProps) {
+export function RequestCardList({ rows, onRowClick, onDelete }: RequestCardListProps) {
   return (
     <div className="space-y-3 p-4">
       {rows.map((r) => (
-        <RequestCard key={r.id} request={r} onClick={onRowClick} />
+        <RequestCard key={r.id} request={r} onClick={onRowClick} onDelete={onDelete} />
       ))}
     </div>
   )

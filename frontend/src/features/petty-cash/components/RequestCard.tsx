@@ -1,3 +1,4 @@
+import { Trash2 } from 'lucide-react'
 import { PettyCashStatusBadge } from './PettyCashStatusBadge'
 import type { PettyCashRequest } from '../types/pettyCash.types'
 import { fmtCurrency, fmtDate } from '../utils/pettyCash.formatters'
@@ -5,10 +6,12 @@ import { fmtCurrency, fmtDate } from '../utils/pettyCash.formatters'
 interface RequestCardProps {
   request: PettyCashRequest
   onClick: (id: string) => void
+  onDelete?: (id: string) => void
 }
 
-export function RequestCard({ request: r, onClick }: RequestCardProps) {
+export function RequestCard({ request: r, onClick, onDelete }: RequestCardProps) {
   const remaining = r.total_disbursed - r.total_expenses
+  const canDelete = onDelete && (r.status === 'PENDING' || r.status === 'REJECTED')
 
   return (
     <div
@@ -24,7 +27,19 @@ export function RequestCard({ request: r, onClick }: RequestCardProps) {
             {r.branch_name} · {fmtDate(r.created_at)}
           </p>
         </div>
-        <PettyCashStatusBadge status={r.status} />
+        <div className="flex items-center gap-2">
+          {canDelete && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onDelete(r.id) }}
+              className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20"
+              title="Hapus request"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          )}
+          <PettyCashStatusBadge status={r.status} />
+        </div>
       </div>
 
       <div className="mt-3 grid grid-cols-2 gap-3 text-sm">

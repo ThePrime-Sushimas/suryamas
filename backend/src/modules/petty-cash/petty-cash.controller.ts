@@ -63,6 +63,16 @@ export class PettyCashController {
     }
   }
 
+  async deleteRequest(req: Request, res: Response): Promise<void> {
+    try {
+      const { userId, branchIds } = await pcScope(req)
+      await pettyCashService.deleteRequest(req.params.id as string, branchIds, userId)
+      sendSuccess(res, null, 'Request dihapus')
+    } catch (error: unknown) {
+      await handleError(res, error, req, { action: 'delete_petty_cash_request', id: req.params.id })
+    }
+  }
+
   // ─── Expenses ───────────────────────────────────────────────────────────────
 
   async listExpenses(req: Request, res: Response): Promise<void> {

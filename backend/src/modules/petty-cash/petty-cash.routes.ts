@@ -13,6 +13,7 @@ import {
   createRequestSchema,
   approveRequestSchema,
   rejectRequestSchema,
+  deleteRequestSchema,
   listExpensesSchema,
   createExpenseSchema,
   updateExpenseSchema,
@@ -76,6 +77,14 @@ router.post(
   (req, res) => pettyCashController.rejectRequest(req, res),
 )
 
+router.delete(
+  '/:id',
+  canDelete(MODULE),
+  requireWriteAccess,
+  validateSchema(deleteRequestSchema),
+  (req, res) => pettyCashController.deleteRequest(req, res),
+)
+
 // ─── Expenses ─────────────────────────────────────────────────────────────────
 
 router.get(
@@ -121,7 +130,7 @@ router.post(
 
 router.post(
   '/:id/settlement',
-  canInsert(MODULE),
+  canApprove(MODULE),
   requireWriteAccess,
   validateSchema(createSettlementSchema),
   (req, res) => pettyCashController.createSettlement(req, res),

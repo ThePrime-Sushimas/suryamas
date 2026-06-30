@@ -621,6 +621,14 @@ export const menuItems: MenuItem[] = [
             module: "general_invoices",
             color: "red",
           },
+          {
+            id: "petty-cash",
+            name: "Petty Cash",
+            href: "/finance/petty-cash",
+            icon: <Coins size={16} />,
+            module: "petty_cash",
+            color: "red",
+          },
         ],
       },
 
@@ -751,14 +759,6 @@ export const menuItems: MenuItem[] = [
             href: "/finance/ap-payments/dashboard",
             icon: <Wallet size={16} />,
             module: "ap_payments",
-            color: "red",
-          },
-          {
-            id: "petty-cash",
-            name: "Kas Kecil",
-            href: "/finance/petty-cash",
-            icon: <Coins size={16} />,
-            module: "petty_cash",
             color: "red",
           },
           {

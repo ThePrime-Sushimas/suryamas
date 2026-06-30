@@ -125,22 +125,26 @@ export default function PettyCashDetailPage() {
               </Button>
             </>
           )}
-          {request.status === 'DISBURSED' && canInsert && (
+          {request.status === 'DISBURSED' && (
             <>
-              <Button
-                variant="primary"
-                leftIcon={<Plus className="h-4 w-4" />}
-                onClick={() => modals.setShowExpenseForm(true)}
-              >
-                Tambah Expense
-              </Button>
-              <Button
-                variant="secondary"
-                leftIcon={<FileText className="h-4 w-4" />}
-                onClick={() => navigate(`/finance/petty-cash/${id}/settlement`)}
-              >
-                Buat Settlement
-              </Button>
+              {canInsert && (
+                <Button
+                  variant="primary"
+                  leftIcon={<Plus className="h-4 w-4" />}
+                  onClick={() => modals.setShowExpenseForm(true)}
+                >
+                  Tambah Expense
+                </Button>
+              )}
+              {canApprove && (
+                <Button
+                  variant="secondary"
+                  leftIcon={<FileText className="h-4 w-4" />}
+                  onClick={() => navigate(`/finance/petty-cash/${id}/settlement`)}
+                >
+                  Buat Settlement
+                </Button>
+              )}
             </>
           )}
           {request.status === 'CLOSED' && canRelease && request.can_void && request.settlement_id && (

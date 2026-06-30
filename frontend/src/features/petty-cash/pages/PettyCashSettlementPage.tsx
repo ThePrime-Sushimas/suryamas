@@ -2,6 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui'
 import { useCompanyBankAccounts } from '@/features/ap-payments/hooks/useCompanyBankAccounts'
+import { usePermissionStore } from '@/features/branch_context/store/permission.store'
 import { usePettyCashRequest } from '../api/pettyCash.api'
 import { useSettlementForm } from '../hooks/useSettlementForm'
 import { SettlementSummaryCard } from '../components/SettlementSummaryCard'
@@ -11,6 +12,9 @@ import { SettlementPreviewCard } from '../components/SettlementPreviewCard'
 export default function PettyCashSettlementPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+
+  const hasPermission = usePermissionStore((s) => s.hasPermission)
+  const canApprove = hasPermission('petty_cash', 'approve')
 
   const { data: request, isLoading } = usePettyCashRequest(id ?? '')
   const { data: bankAccounts = [] } = useCompanyBankAccounts()
@@ -32,6 +36,14 @@ export default function PettyCashSettlementPage() {
         <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
       </div>
     )
+
+  if (!canApprove)
+    return (
+      <div className="text-center py-12 text-gray-500">
+        Anda tidak memiliki akses ke halaman ini.
+      </div>
+    )
+
   if (!request)
     return (
       <div className="text-center py-12 text-gray-500">

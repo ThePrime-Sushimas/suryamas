@@ -1,16 +1,42 @@
-import { logInfo } from '../../config/logger'
-import { AppError } from '../../utils/errors.base'
-import { resolveDocumentUploadExtension, DOCUMENT_UPLOAD_EXTENSIONS } from '../../utils/document-upload.util'
-import { storageService } from '../../services/storage.service'
-import { AuditService } from '../monitoring/monitoring.service'
-import { journalHeadersService } from '../accounting/journals/journal-headers/journal-headers.service'
-import { stockRepository } from '../stock/stock.repository'
-import { getCompanyIdForBranch, requireBranchAccess } from '../../utils/branch-access.util'
-import { pettyCashRepository } from './petty-cash.repository'
-import { productUomsRepository } from '../product-uoms/product-uoms.repository'
-import { createFromPettyCash, capitalizeAssetsFromPettyCashSettlement, revertAssetsCapitalizedByJournal, revertPooledPettyCashAdjustmentsForRequest, revertPooledPettyCashExpense } from '../fixed-assets/fixed-assets.service'
-import { findCategoryById as findAssetCategoryById, hardDeleteAssetById } from '../fixed-assets/fixed-assets.repository'
-import type { PettyCashRequest, PettyCashExpense, PettyCashSettlement, CreateRequestDto, ApproveRequestDto, RejectRequestDto, CreateExpenseDto, UpdateExpenseDto, CreateSettlementDto, VoidSettlementDto } from './petty-cash.types'
+import { logInfo } from "../../config/logger";
+import { AppError } from "../../utils/errors.base";
+import {
+  resolveDocumentUploadExtension,
+  DOCUMENT_UPLOAD_EXTENSIONS,
+} from "../../utils/document-upload.util";
+import { storageService } from "../../services/storage.service";
+import { AuditService } from "../monitoring/monitoring.service";
+import { journalHeadersService } from "../accounting/journals/journal-headers/journal-headers.service";
+import { stockRepository } from "../stock/stock.repository";
+import {
+  getCompanyIdForBranch,
+  requireBranchAccess,
+} from "../../utils/branch-access.util";
+import { pettyCashRepository } from "./petty-cash.repository";
+import { productUomsRepository } from "../product-uoms/product-uoms.repository";
+import {
+  createFromPettyCash,
+  capitalizeAssetsFromPettyCashSettlement,
+  revertAssetsCapitalizedByJournal,
+  revertPooledPettyCashAdjustmentsForRequest,
+  revertPooledPettyCashExpense,
+} from "../fixed-assets/fixed-assets.service";
+import {
+  findCategoryById as findAssetCategoryById,
+  hardDeleteAssetById,
+} from "../fixed-assets/fixed-assets.repository";
+import type {
+  PettyCashRequest,
+  PettyCashExpense,
+  PettyCashSettlement,
+  CreateRequestDto,
+  ApproveRequestDto,
+  RejectRequestDto,
+  CreateExpenseDto,
+  UpdateExpenseDto,
+  CreateSettlementDto,
+  VoidSettlementDto,
+} from "./petty-cash.types";
 import {
   PettyCashRequestNotFoundError,
   PettyCashInvalidStatusError,
@@ -30,57 +56,75 @@ import {
   PettyCashVoidBlockedByRefillError,
   PettyCashAssetFieldsRequiredError,
   PettyCashAssetActiveBlockDeleteError,
-} from './petty-cash.errors'
+  PettyCashRequestDeleteBlockedError,
+} from "./petty-cash.errors";
 
-import type { PoolClient } from 'pg'
+import type { PoolClient } from "pg";
 
 /** Resolve debit COA for a petty cash expense line. */
 async function resolveExpenseCoaId(
   client: PoolClient,
   companyId: string,
   input: {
-    expense_coa_id?: string | null
-    asset_category_id?: string | null
-    category_default_coa_id?: string | null
-    product_id?: string | null
-    warehouse_id?: string | null
+    expense_coa_id?: string | null;
+    asset_category_id?: string | null;
+    category_default_coa_id?: string | null;
+    product_id?: string | null;
+    warehouse_id?: string | null;
   },
 ): Promise<string> {
   // Asset expenses: COA must come from asset category (ignore expense_coa_id override)
   if (input.asset_category_id) {
-    const assetCategory = await findAssetCategoryById(input.asset_category_id, companyId, client)
+    const assetCategory = await findAssetCategoryById(
+      input.asset_category_id,
+      companyId,
+      client,
+    );
     if (!assetCategory) {
-      throw new PettyCashCoaMissingError(`asset_category_id (${input.asset_category_id}) tidak ditemukan`)
+      throw new PettyCashCoaMissingError(
+        `asset_category_id (${input.asset_category_id}) tidak ditemukan`,
+      );
     }
     if (!assetCategory.asset_coa_id) {
-      throw new PettyCashCoaMissingError(`Kategori aset '${assetCategory.category_name}' belum memiliki COA aset`)
+      throw new PettyCashCoaMissingError(
+        `Kategori aset '${assetCategory.category_name}' belum memiliki COA aset`,
+      );
     }
-    return assetCategory.asset_coa_id
+    return assetCategory.asset_coa_id;
   }
 
   if (input.expense_coa_id) {
-    const coaValid = await pettyCashRepository.coaExistsForCompany(input.expense_coa_id, companyId, client)
+    const coaValid = await pettyCashRepository.coaExistsForCompany(
+      input.expense_coa_id,
+      companyId,
+      client,
+    );
     if (!coaValid) {
-      throw new PettyCashCoaMissingError(`expense_coa_id (${input.expense_coa_id}) tidak ditemukan atau tidak aktif`)
+      throw new PettyCashCoaMissingError(
+        `expense_coa_id (${input.expense_coa_id}) tidak ditemukan atau tidak aktif`,
+      );
     }
-    return input.expense_coa_id
+    return input.expense_coa_id;
   }
 
   if (input.category_default_coa_id) {
-    return input.category_default_coa_id
+    return input.category_default_coa_id;
   }
 
-  const isInventoryPurchase = !!(input.product_id && input.warehouse_id)
-  const purposeCode = isInventoryPurchase ? 'PUR-INV' : 'CSH-OUT'
-  const coaId = await pettyCashRepository.findDebitCoaByPurposeCode(client, purposeCode, companyId)
+  const isInventoryPurchase = !!(input.product_id && input.warehouse_id);
+  const purposeCode = isInventoryPurchase ? "PUR-INV" : "CSH-OUT";
+  const coaId = await pettyCashRepository.findDebitCoaByPurposeCode(
+    client,
+    purposeCode,
+    companyId,
+  );
   if (!coaId) {
     throw new PettyCashCoaMissingError(
       `DEBIT account untuk purpose '${purposeCode}' belum ter-mapping di company ini`,
-    )
+    );
   }
-  return coaId
+  return coaId;
 }
-
 
 export class PettyCashService {
   // ─── LIST & GET ──────────────────────────────────────────────────────────────
@@ -88,51 +132,96 @@ export class PettyCashService {
   async listRequests(
     query: Record<string, string>,
     branchIds: string[],
-  ): Promise<{ data: PettyCashRequest[]; pagination: { page: number; limit: number; total: number; totalPages: number } }> {
-    const page = Number(query.page ?? 1)
-    const limit = Number(query.limit ?? 25)
-    const { data, total } = await pettyCashRepository.findAll({
-      branch_id: query.branch_id,
-      status: query.status,
-      date_from: query.date_from,
-      date_to: query.date_to,
-      search: query.search,
-      sort_by: query.sort_by,
-      sort_order: query.sort_order,
-      page,
-      limit,
-    }, branchIds)
-    return { data, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 } }
+  ): Promise<{
+    data: PettyCashRequest[];
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+    };
+  }> {
+    const page = Number(query.page ?? 1);
+    const limit = Number(query.limit ?? 25);
+    const { data, total } = await pettyCashRepository.findAll(
+      {
+        branch_id: query.branch_id,
+        status: query.status,
+        date_from: query.date_from,
+        date_to: query.date_to,
+        search: query.search,
+        sort_by: query.sort_by,
+        sort_order: query.sort_order,
+        page,
+        limit,
+      },
+      branchIds,
+    );
+    return {
+      data,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit) || 1,
+      },
+    };
   }
 
   async getRequest(id: string, branchIds: string[]): Promise<any> {
-    const result = await pettyCashRepository.findByIdWithDetails(id, branchIds)
-    if (!result) throw new PettyCashRequestNotFoundError(id)
-    return result
+    const result = await pettyCashRepository.findByIdWithDetails(id, branchIds);
+    if (!result) throw new PettyCashRequestNotFoundError(id);
+    return result;
   }
 
   async listExpenses(
     requestId: string,
     query: Record<string, string>,
     branchIds: string[],
-  ): Promise<{ data: PettyCashExpense[]; pagination: { page: number; limit: number; total: number; totalPages: number } }> {
-    const page = Number(query.page ?? 1)
-    const limit = Number(query.limit ?? 50)
-    const { data, total } = await pettyCashRepository.findExpensesByRequestId(requestId, { page, limit }, branchIds)
-    return { data, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 } }
+  ): Promise<{
+    data: PettyCashExpense[];
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+    };
+  }> {
+    const page = Number(query.page ?? 1);
+    const limit = Number(query.limit ?? 50);
+    const { data, total } = await pettyCashRepository.findExpensesByRequestId(
+      requestId,
+      { page, limit },
+      branchIds,
+    );
+    return {
+      data,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit) || 1,
+      },
+    };
   }
 
   async getExpenseReport(
     query: Record<string, string>,
     branchIds: string[],
-  ): Promise<{ data: any[]; pagination: { total: number; page: number; limit: number } }> {
-    return pettyCashRepository.findExpensesForReport({
-      branch_id: query.branch_id,
-      date_from: query.date_from,
-      date_to: query.date_to,
-      search: query.search,
-      limit: query.limit ? Number(query.limit) : undefined,
-    }, branchIds)
+  ): Promise<{
+    data: any[];
+    pagination: { total: number; page: number; limit: number };
+  }> {
+    return pettyCashRepository.findExpensesForReport(
+      {
+        branch_id: query.branch_id,
+        date_from: query.date_from,
+        date_to: query.date_to,
+        search: query.search,
+        limit: query.limit ? Number(query.limit) : undefined,
+      },
+      branchIds,
+    );
   }
 
   // ─── CREATE REQUEST ─────────────────────────────────────────────────────────
@@ -143,45 +232,69 @@ export class PettyCashService {
     userId: string,
   ): Promise<PettyCashRequest> {
     // Access check
-    requireBranchAccess(dto.branch_id, branchIds)
+    requireBranchAccess(dto.branch_id, branchIds);
 
     // Resolve company
-    const companyId = await getCompanyIdForBranch(dto.branch_id)
+    const companyId = await getCompanyIdForBranch(dto.branch_id);
     if (!companyId) {
-      throw new PettyCashCoaMissingError('Branch tidak terhubung ke company manapun')
+      throw new PettyCashCoaMissingError(
+        "Branch tidak terhubung ke company manapun",
+      );
     }
 
     // Validate COA exists
-    const coaValid = await pettyCashRepository.coaExistsForCompany(dto.petty_cash_coa_id, companyId)
+    const coaValid = await pettyCashRepository.coaExistsForCompany(
+      dto.petty_cash_coa_id,
+      companyId,
+    );
     if (!coaValid) {
       throw new PettyCashCoaMissingError(
         `petty_cash_coa_id (${dto.petty_cash_coa_id}) tidak ditemukan atau tidak aktif untuk company ini`,
-      )
+      );
     }
 
     // Generate number + insert (within transaction for advisory lock)
-    const request = await pettyCashRepository.withTransaction(async (client) => {
-      const branchCode = await pettyCashRepository.findBranchCode(client, dto.branch_id)
-      const requestNumber = await pettyCashRepository.generateRequestNumber(client, companyId, branchCode)
+    const request = await pettyCashRepository.withTransaction(
+      async (client) => {
+        const branchCode = await pettyCashRepository.findBranchCode(
+          client,
+          dto.branch_id,
+        );
+        const requestNumber = await pettyCashRepository.generateRequestNumber(
+          client,
+          companyId,
+          branchCode,
+        );
 
-      return pettyCashRepository.create(client, {
-        company_id: companyId,
-        branch_id: dto.branch_id,
-        request_number: requestNumber,
-        amount_requested: dto.amount_requested,
-        petty_cash_coa_id: dto.petty_cash_coa_id,
-        description: dto.description,
-        created_by: userId,
-      })
-    })
+        return pettyCashRepository.create(client, {
+          company_id: companyId,
+          branch_id: dto.branch_id,
+          request_number: requestNumber,
+          amount_requested: dto.amount_requested,
+          petty_cash_coa_id: dto.petty_cash_coa_id,
+          description: dto.description,
+          created_by: userId,
+        });
+      },
+    );
 
-    await AuditService.log('CREATE', 'petty_cash_requests', request.id, userId, undefined, {
+    await AuditService.log(
+      "CREATE",
+      "petty_cash_requests",
+      request.id,
+      userId,
+      undefined,
+      {
+        request_number: request.request_number,
+        amount_requested: request.amount_requested,
+      },
+    );
+    logInfo("Petty cash request created", {
+      id: request.id,
       request_number: request.request_number,
-      amount_requested: request.amount_requested,
-    })
-    logInfo('Petty cash request created', { id: request.id, request_number: request.request_number })
+    });
 
-    return request
+    return request;
   }
 
   // ─── APPROVE REQUEST ────────────────────────────────────────────────────────
@@ -193,47 +306,53 @@ export class PettyCashService {
     userId: string,
   ): Promise<PettyCashRequest> {
     // Lightweight pre-check (fast-fail for obvious issues, NOT authoritative)
-    const request = await pettyCashRepository.findById(id)
-    if (!request) throw new PettyCashRequestNotFoundError(id)
-    requireBranchAccess(request.branch_id, branchIds)
+    const request = await pettyCashRepository.findById(id);
+    if (!request) throw new PettyCashRequestNotFoundError(id);
+    requireBranchAccess(request.branch_id, branchIds);
 
     // Validate amount > 0
     if (!dto.amount_disbursed || dto.amount_disbursed <= 0) {
-      throw new PettyCashInvalidStatusError('amount_disbursed must be > 0', 'positive number')
+      throw new PettyCashInvalidStatusError(
+        "amount_disbursed must be > 0",
+        "positive number",
+      );
     }
 
-    const companyId = request.company_id
+    const companyId = request.company_id;
 
     // ALL authoritative checks + mutations INSIDE single transaction
     await pettyCashRepository.withTransaction(async (client) => {
       // 1. Advisory lock on branch — serializes all approve attempts for the same branch.
       //    Prevents phantom-read: concurrent approves on different PENDING requests
       //    in the same branch would both see 0 DISBURSED rows without this lock.
-      await client.query(
-        'SELECT pg_advisory_xact_lock(hashtext($1))',
-        [`petty_cash_branch_disburse:${request.branch_id}`],
-      )
+      await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [
+        `petty_cash_branch_disburse:${request.branch_id}`,
+      ]);
 
       // 2. Lock request row + re-validate status (prevent double-approve on same request)
-      const lockedRequest = await pettyCashRepository.findByIdForUpdate(client, id)
-      if (!lockedRequest || lockedRequest.status !== 'PENDING') {
+      const lockedRequest = await pettyCashRepository.findByIdForUpdate(
+        client,
+        id,
+      );
+      if (!lockedRequest || lockedRequest.status !== "PENDING") {
         throw new PettyCashInvalidStatusError(
-          lockedRequest?.status ?? 'NOT_FOUND',
-          'PENDING',
-        )
+          lockedRequest?.status ?? "NOT_FOUND",
+          "PENDING",
+        );
       }
 
       // 3. Check no other DISBURSED in same branch (defense in depth — now reliable
       //    because advisory lock guarantees no concurrent approve can be mid-flight)
-      const activeRequest = await pettyCashRepository.findActiveDisbursedRequestForUpdate(
-        client,
-        lockedRequest.branch_id,
-      )
+      const activeRequest =
+        await pettyCashRepository.findActiveDisbursedRequestForUpdate(
+          client,
+          lockedRequest.branch_id,
+        );
       if (activeRequest) {
         throw new PettyCashBranchHasActiveRequestError(
           lockedRequest.branch_id,
           activeRequest.request_number,
-        )
+        );
       }
 
       // 4. Resolve bank COA
@@ -241,11 +360,11 @@ export class PettyCashService {
         client,
         dto.source_bank_account_id,
         companyId,
-      )
+      );
       if (!bankCoaId) {
         throw new PettyCashCoaMissingError(
           `Bank account (id: ${dto.source_bank_account_id}) tidak memiliki COA mapping untuk company ini`,
-        )
+        );
       }
 
       // 5. Update request → DISBURSED
@@ -253,24 +372,24 @@ export class PettyCashService {
         amount_disbursed: dto.amount_disbursed,
         source_bank_account_id: dto.source_bank_account_id,
         approved_by: userId,
-      })
+      });
 
       // 6. Create disburse journal (DRAFT)
-      const amount = dto.amount_disbursed
-      const desc = `Pencairan Kas Kecil — ${lockedRequest.request_number}`
+      const amount = dto.amount_disbursed;
+      const desc = `Pencairan Petty Cash — ${lockedRequest.request_number}`;
 
       const journal = await journalHeadersService.create(
         {
           company_id: companyId,
           branch_id: lockedRequest.branch_id,
           journal_date: new Date().toISOString().slice(0, 10),
-          journal_type: 'CASH',
+          journal_type: "CASH",
           description: desc,
-          source_module: 'petty_cash',
-          reference_type: 'petty_cash_disburse',
+          source_module: "petty_cash",
+          reference_type: "petty_cash_disburse",
           reference_id: lockedRequest.id,
           reference_number: lockedRequest.request_number,
-          currency: 'IDR',
+          currency: "IDR",
           exchange_rate: 1,
           lines: [
             {
@@ -291,25 +410,32 @@ export class PettyCashService {
         },
         userId,
         client,
-      )
+      );
 
       // 7. Auto-post: DRAFT → SUBMITTED → APPROVED → POSTED
-      await journalHeadersService.submitAsUser(journal.id, userId, client)
-      await journalHeadersService.approveAsUser(journal.id, userId, client)
-      await journalHeadersService.postAsUser(journal.id, userId, client)
+      await journalHeadersService.submitAsUser(journal.id, userId, client);
+      await journalHeadersService.approveAsUser(journal.id, userId, client);
+      await journalHeadersService.postAsUser(journal.id, userId, client);
 
       // 8. Store journal reference
-      await pettyCashRepository.setDisburseJournalId(client, id, journal.id)
-    })
+      await pettyCashRepository.setDisburseJournalId(client, id, journal.id);
+    });
 
     // Audit — best effort, outside transaction
-    await AuditService.log('UPDATE', 'petty_cash_requests', id, userId, { status: 'PENDING' }, {
-      status: 'DISBURSED',
-      amount_disbursed: dto.amount_disbursed,
-    })
-    logInfo('Petty cash request approved & disbursed', { id, user_id: userId })
+    await AuditService.log(
+      "UPDATE",
+      "petty_cash_requests",
+      id,
+      userId,
+      { status: "PENDING" },
+      {
+        status: "DISBURSED",
+        amount_disbursed: dto.amount_disbursed,
+      },
+    );
+    logInfo("Petty cash request approved & disbursed", { id, user_id: userId });
 
-    return (await pettyCashRepository.findById(id))!
+    return (await pettyCashRepository.findById(id))!;
   }
 
   // ─── REJECT REQUEST ─────────────────────────────────────────────────────────
@@ -320,26 +446,61 @@ export class PettyCashService {
     branchIds: string[],
     userId: string,
   ): Promise<PettyCashRequest> {
-    const request = await pettyCashRepository.findById(id)
-    if (!request) throw new PettyCashRequestNotFoundError(id)
-    requireBranchAccess(request.branch_id, branchIds)
+    const request = await pettyCashRepository.findById(id);
+    if (!request) throw new PettyCashRequestNotFoundError(id);
+    requireBranchAccess(request.branch_id, branchIds);
 
-    if (request.status !== 'PENDING') {
-      throw new PettyCashInvalidStatusError(request.status, 'PENDING')
+    if (request.status !== "PENDING") {
+      throw new PettyCashInvalidStatusError(request.status, "PENDING");
     }
 
     await pettyCashRepository.updateStatusToRejected(id, {
       rejected_by: userId,
       rejection_reason: dto.rejection_reason,
-    })
+    });
 
-    await AuditService.log('UPDATE', 'petty_cash_requests', id, userId, { status: 'PENDING' }, {
-      status: 'REJECTED',
-      rejection_reason: dto.rejection_reason,
-    })
-    logInfo('Petty cash request rejected', { id, user_id: userId })
+    await AuditService.log(
+      "UPDATE",
+      "petty_cash_requests",
+      id,
+      userId,
+      { status: "PENDING" },
+      {
+        status: "REJECTED",
+        rejection_reason: dto.rejection_reason,
+      },
+    );
+    logInfo("Petty cash request rejected", { id, user_id: userId });
 
-    return (await pettyCashRepository.findById(id))!
+    return (await pettyCashRepository.findById(id))!;
+  }
+
+  // ─── DELETE REQUEST ─────────────────────────────────────────────────────────
+
+  async deleteRequest(
+    id: string,
+    branchIds: string[],
+    userId: string,
+  ): Promise<void> {
+    const request = await pettyCashRepository.findById(id);
+    if (!request) throw new PettyCashRequestNotFoundError(id);
+    requireBranchAccess(request.branch_id, branchIds);
+
+    if (request.status !== "PENDING" && request.status !== "REJECTED") {
+      throw new PettyCashRequestDeleteBlockedError(request.status);
+    }
+
+    await pettyCashRepository.softDeleteRequest(id, userId);
+
+    await AuditService.log("DELETE", "petty_cash_requests", id, userId, {
+      request_number: request.request_number,
+      status: request.status,
+    });
+    logInfo("Petty cash request deleted", {
+      id,
+      request_number: request.request_number,
+      status: request.status,
+    });
   }
 
   // ─── CREATE EXPENSE ─────────────────────────────────────────────────────────
@@ -351,20 +512,27 @@ export class PettyCashService {
     userId: string,
   ): Promise<PettyCashExpense> {
     // Fast-fail pre-checks (outside transaction)
-    const request = await pettyCashRepository.findById(requestId)
-    if (!request) throw new PettyCashRequestNotFoundError(requestId)
-    requireBranchAccess(request.branch_id, branchIds)
+    const request = await pettyCashRepository.findById(requestId);
+    if (!request) throw new PettyCashRequestNotFoundError(requestId);
+    requireBranchAccess(request.branch_id, branchIds);
 
     if (!dto.amount || dto.amount <= 0) {
-      throw new PettyCashInvalidStatusError('amount must be > 0', 'positive number')
+      throw new PettyCashInvalidStatusError(
+        "amount must be > 0",
+        "positive number",
+      );
     }
 
-    const companyId = request.company_id
+    const companyId = request.company_id;
 
     // Validate category + get affects_inventory flag
-    const category = await pettyCashRepository.findCategoryWithInventoryFlag(dto.category_id)
+    const category = await pettyCashRepository.findCategoryWithInventoryFlag(
+      dto.category_id,
+    );
     if (!category) {
-      throw new PettyCashCoaMissingError(`category_id (${dto.category_id}) tidak ditemukan`)
+      throw new PettyCashCoaMissingError(
+        `category_id (${dto.category_id}) tidak ditemukan`,
+      );
     }
 
     // Validate inventory fields if user sends product_id (intent to record as inventory)
@@ -373,150 +541,203 @@ export class PettyCashService {
       // Actual enforcement is based on whether product_id is provided.
     }
     if (dto.warehouse_id) {
-      const missing: string[] = []
-      if (!dto.product_id) missing.push('product_id')
-      if (!dto.qty || dto.qty <= 0) missing.push('qty')
+      const missing: string[] = [];
+      if (!dto.product_id) missing.push("product_id");
+      if (!dto.qty || dto.qty <= 0) missing.push("qty");
       if (missing.length > 0) {
-        throw new PettyCashInventoryFieldsRequiredError(missing)
+        throw new PettyCashInventoryFieldsRequiredError(missing);
       }
     }
     if (dto.asset_category_id) {
-      const missing: string[] = []
-      if (!dto.asset_name) missing.push('asset_name')
+      const missing: string[] = [];
+      if (!dto.asset_name) missing.push("asset_name");
       if (missing.length > 0) {
-        throw new PettyCashAssetFieldsRequiredError(missing)
+        throw new PettyCashAssetFieldsRequiredError(missing);
       }
     }
 
     // All authoritative checks + insert inside transaction
-    const expense = await pettyCashRepository.withTransaction(async (client) => {
-      // 1. Advisory lock — serialize expense inserts for this request
-      await client.query(
-        'SELECT pg_advisory_xact_lock(hashtext($1))',
-        [`petty_cash_request_balance:${requestId}`],
-      )
+    const expense = await pettyCashRepository.withTransaction(
+      async (client) => {
+        // 1. Advisory lock — serialize expense inserts for this request
+        await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [
+          `petty_cash_request_balance:${requestId}`,
+        ]);
 
-      // 2. Lock request + re-validate status
-      const lockedRequest = await pettyCashRepository.findByIdForUpdate(client, requestId)
-      if (!lockedRequest || lockedRequest.status !== 'DISBURSED') {
-        throw new PettyCashInvalidStatusError(
-          lockedRequest?.status ?? 'NOT_FOUND',
-          'DISBURSED',
-        )
-      }
-
-      // 3. Check balance
-      const totalExisting = await pettyCashRepository.sumExpensesByRequestId(client, requestId)
-      const available = (lockedRequest.amount_disbursed ?? 0) + lockedRequest.carried_amount
-      if (totalExisting + dto.amount > available + 0.01) {
-        throw new PettyCashInsufficientBalanceError(available - totalExisting, dto.amount)
-      }
-
-      // 4. Resolve expense_coa_id
-      // Priority: user override > asset category COA > expense category default > purpose fallback
-      const resolvedCoaId = await resolveExpenseCoaId(client, companyId, {
-        expense_coa_id: dto.expense_coa_id,
-        asset_category_id: dto.asset_category_id,
-        category_default_coa_id: category.default_coa_id,
-        product_id: dto.product_id,
-        warehouse_id: dto.warehouse_id,
-      })
-
-      // 5. Insert expense
-      let createdAssetId: string | null = null
-
-      const newExpense = await pettyCashRepository.createExpense(client, {
-        request_id: requestId,
-        company_id: companyId,
-        branch_id: lockedRequest.branch_id,
-        expense_date: dto.expense_date ?? new Date().toISOString().slice(0, 10),
-        amount: dto.amount,
-        description: dto.description,
-        category_id: dto.category_id,
-        sub_category_id: dto.sub_category_id,
-        expense_coa_id: resolvedCoaId,
-        product_id: dto.product_id,
-        product_uom_id: dto.product_uom_id,
-        qty: dto.qty,
-        unit_price: dto.unit_price,
-        warehouse_id: dto.warehouse_id,
-        receipt_url: dto.receipt_url,
-        created_by: userId,
-      })
-
-      // 6a. Asset acquisition — realtime
-      if (dto.asset_category_id && dto.asset_name) {
-        const asset = await createFromPettyCash(client, {
-          company_id: companyId,
-          branch_id: lockedRequest.branch_id,
-          asset_category_id: dto.asset_category_id,
-          asset_name: dto.asset_name,
-          acquisition_date: dto.expense_date ?? new Date().toISOString().slice(0, 10),
-          cost: dto.amount,
-          qty: dto.asset_qty ?? 1,
-          useful_life_months: dto.useful_life_months,
-          salvage_value: dto.salvage_value,
-          petty_cash_expense_id: newExpense.id,
-          product_id: dto.product_id ?? null,
-          created_by: userId,
-        })
-        createdAssetId = asset.id
-        await pettyCashRepository.updateExpense(client, newExpense.id, { fixed_asset_id: asset.id }, userId)
-      }
-
-      // 6b. Stock movement — realtime (Option B: stock immediate, journal at settlement)
-      if (dto.product_id && dto.warehouse_id && dto.qty && dto.qty > 0) {
-        let conversionFactor = 1
-        if (dto.product_uom_id) {
-          const uom = await productUomsRepository.findById(dto.product_uom_id)
-          if (uom) {
-            conversionFactor = Number(uom.conversion_factor) || 1
-          }
+        // 2. Lock request + re-validate status
+        const lockedRequest = await pettyCashRepository.findByIdForUpdate(
+          client,
+          requestId,
+        );
+        if (!lockedRequest || lockedRequest.status !== "DISBURSED") {
+          throw new PettyCashInvalidStatusError(
+            lockedRequest?.status ?? "NOT_FOUND",
+            "DISBURSED",
+          );
         }
 
-        const qty = dto.qty * conversionFactor
-        const costPerUnit = dto.unit_price != null && dto.unit_price > 0
-          ? dto.unit_price / conversionFactor
-          : (qty > 0 ? dto.amount / qty : dto.amount)
+        // 3. Check balance
+        const totalExisting = await pettyCashRepository.sumExpensesByRequestId(
+          client,
+          requestId,
+        );
+        const available =
+          (lockedRequest.amount_disbursed ?? 0) + lockedRequest.carried_amount;
+        if (totalExisting + dto.amount > available + 0.01) {
+          throw new PettyCashInsufficientBalanceError(
+            available - totalExisting,
+            dto.amount,
+          );
+        }
 
-        const balance = await stockRepository.getBalanceForUpdate(client, dto.warehouse_id, dto.product_id)
-        const currentQty = balance ? Number(balance.qty) : 0
-        const currentAvgCost = balance ? Number(balance.avg_cost) : 0
-        const newQty = currentQty + qty
-        const newAvgCost = newQty > 0
-          ? ((currentQty * currentAvgCost) + (qty * costPerUnit)) / newQty
-          : costPerUnit
-
-        const movement = await stockRepository.createMovement(client, {
-          warehouse_id: dto.warehouse_id,
+        // 4. Resolve expense_coa_id
+        // Priority: user override > asset category COA > expense category default > purpose fallback
+        const resolvedCoaId = await resolveExpenseCoaId(client, companyId, {
+          expense_coa_id: dto.expense_coa_id,
+          asset_category_id: dto.asset_category_id,
+          category_default_coa_id: category.default_coa_id,
           product_id: dto.product_id,
-          movement_type: 'IN_PURCHASE',
-          qty,
-          cost_per_unit: costPerUnit,
-          reference_type: 'petty_cash' as any,
-          reference_id: requestId,
-          notes: `Petty cash: ${dto.description || lockedRequest.request_number}`,
-          movement_date: dto.expense_date ?? new Date().toISOString().slice(0, 10),
+          warehouse_id: dto.warehouse_id,
+        });
+
+        // 5. Insert expense
+        let createdAssetId: string | null = null;
+
+        const newExpense = await pettyCashRepository.createExpense(client, {
+          request_id: requestId,
+          company_id: companyId,
+          branch_id: lockedRequest.branch_id,
+          expense_date:
+            dto.expense_date ?? new Date().toISOString().slice(0, 10),
+          amount: dto.amount,
+          description: dto.description,
+          category_id: dto.category_id,
+          sub_category_id: dto.sub_category_id,
+          expense_coa_id: resolvedCoaId,
+          product_id: dto.product_id,
+          product_uom_id: dto.product_uom_id,
+          qty: dto.qty,
+          unit_price: dto.unit_price,
+          warehouse_id: dto.warehouse_id,
+          receipt_url: dto.receipt_url,
           created_by: userId,
-        }, newQty)
+        });
 
-        await stockRepository.upsertBalance(client, dto.warehouse_id, dto.product_id, newQty, newAvgCost)
-        await pettyCashRepository.updateExpenseStockMovementId(client, newExpense.id, movement.id)
-      }
+        // 6a. Asset acquisition — realtime
+        if (dto.asset_category_id && dto.asset_name) {
+          const asset = await createFromPettyCash(client, {
+            company_id: companyId,
+            branch_id: lockedRequest.branch_id,
+            asset_category_id: dto.asset_category_id,
+            asset_name: dto.asset_name,
+            acquisition_date:
+              dto.expense_date ?? new Date().toISOString().slice(0, 10),
+            cost: dto.amount,
+            qty: dto.asset_qty ?? 1,
+            useful_life_months: dto.useful_life_months,
+            salvage_value: dto.salvage_value,
+            petty_cash_expense_id: newExpense.id,
+            product_id: dto.product_id ?? null,
+            created_by: userId,
+          });
+          createdAssetId = asset.id;
+          await pettyCashRepository.updateExpense(
+            client,
+            newExpense.id,
+            { fixed_asset_id: asset.id },
+            userId,
+          );
+        }
 
-      return { ...newExpense, fixed_asset_id: createdAssetId }
-    })
+        // 6b. Stock movement — realtime (Option B: stock immediate, journal at settlement)
+        if (dto.product_id && dto.warehouse_id && dto.qty && dto.qty > 0) {
+          let conversionFactor = 1;
+          if (dto.product_uom_id) {
+            const uom = await productUomsRepository.findById(
+              dto.product_uom_id,
+            );
+            if (uom) {
+              conversionFactor = Number(uom.conversion_factor) || 1;
+            }
+          }
 
+          const qty = dto.qty * conversionFactor;
+          const costPerUnit =
+            dto.unit_price != null && dto.unit_price > 0
+              ? dto.unit_price / conversionFactor
+              : qty > 0
+                ? dto.amount / qty
+                : dto.amount;
 
-    await AuditService.log('CREATE', 'petty_cash_expenses', expense.id, userId, undefined, {
+          const balance = await stockRepository.getBalanceForUpdate(
+            client,
+            dto.warehouse_id,
+            dto.product_id,
+          );
+          const currentQty = balance ? Number(balance.qty) : 0;
+          const currentAvgCost = balance ? Number(balance.avg_cost) : 0;
+          const newQty = currentQty + qty;
+          const newAvgCost =
+            newQty > 0
+              ? (currentQty * currentAvgCost + qty * costPerUnit) / newQty
+              : costPerUnit;
+
+          const movement = await stockRepository.createMovement(
+            client,
+            {
+              warehouse_id: dto.warehouse_id,
+              product_id: dto.product_id,
+              movement_type: "IN_PURCHASE",
+              qty,
+              cost_per_unit: costPerUnit,
+              reference_type: "petty_cash" as any,
+              reference_id: requestId,
+              notes: `Petty cash: ${dto.description || lockedRequest.request_number}`,
+              movement_date:
+                dto.expense_date ?? new Date().toISOString().slice(0, 10),
+              created_by: userId,
+            },
+            newQty,
+          );
+
+          await stockRepository.upsertBalance(
+            client,
+            dto.warehouse_id,
+            dto.product_id,
+            newQty,
+            newAvgCost,
+          );
+          await pettyCashRepository.updateExpenseStockMovementId(
+            client,
+            newExpense.id,
+            movement.id,
+          );
+        }
+
+        return { ...newExpense, fixed_asset_id: createdAssetId };
+      },
+    );
+
+    await AuditService.log(
+      "CREATE",
+      "petty_cash_expenses",
+      expense.id,
+      userId,
+      undefined,
+      {
+        request_id: requestId,
+        amount: expense.amount,
+        category_id: expense.category_id,
+        affects_inventory: category.affects_inventory,
+      },
+    );
+    logInfo("Petty cash expense created", {
+      id: expense.id,
       request_id: requestId,
       amount: expense.amount,
-      category_id: expense.category_id,
-      affects_inventory: category.affects_inventory,
-    })
-    logInfo('Petty cash expense created', { id: expense.id, request_id: requestId, amount: expense.amount })
+    });
 
-    return expense
+    return expense;
   }
 
   // ─── UPDATE EXPENSE ─────────────────────────────────────────────────────────
@@ -528,207 +749,318 @@ export class PettyCashService {
     userId: string,
   ): Promise<PettyCashExpense> {
     // Fast-fail pre-checks
-    const expense = await pettyCashRepository.findExpenseById(expenseId)
-    if (!expense) throw new PettyCashExpenseNotFoundError(expenseId)
-    if (expense.settlement_id) throw new PettyCashExpenseAlreadySettledError(expenseId)
+    const expense = await pettyCashRepository.findExpenseById(expenseId);
+    if (!expense) throw new PettyCashExpenseNotFoundError(expenseId);
+    if (expense.settlement_id)
+      throw new PettyCashExpenseAlreadySettledError(expenseId);
 
-    const request = await pettyCashRepository.findById(expense.request_id)
-    if (!request) throw new PettyCashRequestNotFoundError(expense.request_id)
-    requireBranchAccess(request.branch_id, branchIds)
+    const request = await pettyCashRepository.findById(expense.request_id);
+    if (!request) throw new PettyCashRequestNotFoundError(expense.request_id);
+    requireBranchAccess(request.branch_id, branchIds);
 
-    if (request.status !== 'DISBURSED') {
-      throw new PettyCashInvalidStatusError(request.status, 'DISBURSED')
+    if (request.status !== "DISBURSED") {
+      throw new PettyCashInvalidStatusError(request.status, "DISBURSED");
     }
 
-    const companyId = request.company_id
+    const companyId = request.company_id;
 
-    const effectiveWarehouseId = dto.warehouse_id !== undefined ? dto.warehouse_id : expense.warehouse_id
+    const effectiveWarehouseId =
+      dto.warehouse_id !== undefined ? dto.warehouse_id : expense.warehouse_id;
     if (effectiveWarehouseId) {
-      const effectiveProductId = dto.product_id ?? expense.product_id
-      const effectiveQty = dto.qty ?? expense.qty
-      const missing: string[] = []
-      if (!effectiveProductId) missing.push('product_id')
-      if (!effectiveQty || effectiveQty <= 0) missing.push('qty')
+      const effectiveProductId = dto.product_id ?? expense.product_id;
+      const effectiveQty = dto.qty ?? expense.qty;
+      const missing: string[] = [];
+      if (!effectiveProductId) missing.push("product_id");
+      if (!effectiveQty || effectiveQty <= 0) missing.push("qty");
       if (missing.length > 0) {
-        throw new PettyCashInventoryFieldsRequiredError(missing)
+        throw new PettyCashInventoryFieldsRequiredError(missing);
       }
     }
 
     // If amount is changing, need balance re-validation with advisory lock
-    const amountChanging = dto.amount !== undefined && dto.amount !== expense.amount
+    const amountChanging =
+      dto.amount !== undefined && dto.amount !== expense.amount;
 
-    const updated = await pettyCashRepository.withTransaction(async (client) => {
-      if (amountChanging) {
-        // Advisory lock for balance check
-        await client.query(
-          'SELECT pg_advisory_xact_lock(hashtext($1))',
-          [`petty_cash_request_balance:${expense.request_id}`],
-        )
+    const updated = await pettyCashRepository.withTransaction(
+      async (client) => {
+        if (amountChanging) {
+          // Advisory lock for balance check
+          await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [
+            `petty_cash_request_balance:${expense.request_id}`,
+          ]);
 
-        // Re-validate request status
-        const lockedRequest = await pettyCashRepository.findByIdForUpdate(client, expense.request_id)
-        if (!lockedRequest || lockedRequest.status !== 'DISBURSED') {
-          throw new PettyCashInvalidStatusError(lockedRequest?.status ?? 'NOT_FOUND', 'DISBURSED')
-        }
+          // Re-validate request status
+          const lockedRequest = await pettyCashRepository.findByIdForUpdate(
+            client,
+            expense.request_id,
+          );
+          if (!lockedRequest || lockedRequest.status !== "DISBURSED") {
+            throw new PettyCashInvalidStatusError(
+              lockedRequest?.status ?? "NOT_FOUND",
+              "DISBURSED",
+            );
+          }
 
-        // Check balance (exclude this expense from sum)
-        const totalOthers = await pettyCashRepository.sumExpensesByRequestId(
-          client, expense.request_id, expenseId,
-        )
-        const available = (lockedRequest.amount_disbursed ?? 0) + lockedRequest.carried_amount
-        if (totalOthers + dto.amount! > available + 0.01) {
-          throw new PettyCashInsufficientBalanceError(available - totalOthers, dto.amount!)
-        }
-      }
-
-      // Resolve COA when relevant fields change
-      let resolvedCoaId: string | undefined
-      const coaInputsChanged =
-        dto.expense_coa_id !== undefined
-        || (dto.category_id !== undefined && dto.category_id !== expense.category_id)
-        || dto.product_id !== undefined
-        || dto.warehouse_id !== undefined
-
-      if (coaInputsChanged) {
-        const effectiveCategoryId = dto.category_id ?? expense.category_id
-        const categoryMeta = await pettyCashRepository.findCategoryWithInventoryFlag(effectiveCategoryId, client)
-        if (!categoryMeta) {
-          throw new PettyCashCoaMissingError(`category_id (${effectiveCategoryId}) tidak ditemukan`)
-        }
-
-        let assetCategoryId: string | null = null
-        if (expense.fixed_asset_id) {
-          const { rows } = await client.query<{ asset_category_id: string }>(
-            'SELECT asset_category_id FROM fixed_assets WHERE id = $1',
-            [expense.fixed_asset_id],
-          )
-          assetCategoryId = rows[0]?.asset_category_id ?? null
-        }
-
-        resolvedCoaId = await resolveExpenseCoaId(client, companyId, {
-          expense_coa_id: dto.expense_coa_id,
-          asset_category_id: assetCategoryId,
-          category_default_coa_id: categoryMeta?.default_coa_id ?? null,
-          product_id: dto.product_id !== undefined ? dto.product_id : expense.product_id,
-          warehouse_id: dto.warehouse_id !== undefined ? dto.warehouse_id : expense.warehouse_id,
-        })
-      }
-
-      // Build update payload (only changed fields)
-      const updateData: Record<string, unknown> = {}
-      if (dto.expense_date !== undefined) updateData.expense_date = dto.expense_date
-      if (dto.amount !== undefined) updateData.amount = dto.amount
-      if (dto.description !== undefined) updateData.description = dto.description
-      if (dto.category_id !== undefined) updateData.category_id = dto.category_id
-      if (dto.sub_category_id !== undefined) updateData.sub_category_id = dto.sub_category_id
-      if (resolvedCoaId) updateData.expense_coa_id = resolvedCoaId
-      if (dto.product_id !== undefined) updateData.product_id = dto.product_id
-      if (dto.product_uom_id !== undefined) updateData.product_uom_id = dto.product_uom_id
-      if (dto.qty !== undefined) updateData.qty = dto.qty
-      if (dto.unit_price !== undefined) updateData.unit_price = dto.unit_price
-      if (dto.warehouse_id !== undefined) updateData.warehouse_id = dto.warehouse_id
-      if (dto.receipt_url !== undefined) updateData.receipt_url = dto.receipt_url
-
-      if (Object.keys(updateData).length === 0) {
-        return expense // nothing to update
-      }
-
-      const updatedExpense = await pettyCashRepository.updateExpense(client, expenseId, updateData, userId)
-
-      // Stock movement handling: reverse old + create new if inventory fields changed
-      const effectiveProductId = dto.product_id !== undefined ? dto.product_id : expense.product_id
-      const effectiveWarehouseId = dto.warehouse_id !== undefined ? dto.warehouse_id : expense.warehouse_id
-      const effectiveQty = dto.qty !== undefined ? dto.qty : expense.qty
-      const effectiveUnitPrice = dto.unit_price !== undefined ? dto.unit_price : expense.unit_price
-      const effectiveAmount = dto.amount !== undefined ? dto.amount : expense.amount
-
-      const hadMovement = !!expense.stock_movement_id
-      const shouldHaveMovement = !!effectiveProductId && !!effectiveWarehouseId && !!effectiveQty && effectiveQty > 0
-
-      const inventoryFieldsChanged = hadMovement && (
-        dto.product_id !== undefined || dto.warehouse_id !== undefined ||
-        dto.qty !== undefined || dto.unit_price !== undefined || dto.amount !== undefined
-      )
-
-      // Reverse old movement if it existed AND (fields changed OR no longer inventory)
-      if (hadMovement && (inventoryFieldsChanged || !shouldHaveMovement)) {
-        const oldMovement = await pettyCashRepository.findStockMovementById(client, expense.stock_movement_id!)
-        if (oldMovement) {
-          const balance = await stockRepository.getBalanceForUpdate(client, oldMovement.warehouse_id, oldMovement.product_id)
-          const currentQty = balance ? Number(balance.qty) : 0
-          const currentAvgCost = balance ? Number(balance.avg_cost) : 0
-          const newQty = currentQty - Number(oldMovement.qty)
-
-          await stockRepository.createMovement(client, {
-            warehouse_id: oldMovement.warehouse_id,
-            product_id: oldMovement.product_id,
-            movement_type: 'OUT_REVERSAL',
-            qty: Number(oldMovement.qty),
-            cost_per_unit: Number(oldMovement.cost_per_unit),
-            reference_type: 'petty_cash' as any,
-            reference_id: expense.request_id,
-            notes: `Update expense — reversal`,
-            movement_date: oldMovement.movement_date,
-            created_by: userId,
-          }, newQty)
-
-          await stockRepository.upsertBalance(client, oldMovement.warehouse_id, oldMovement.product_id, newQty, currentAvgCost)
-          await pettyCashRepository.clearExpenseStockMovementId(client, expenseId)
-        }
-      }
-
-      // Create new movement if should have one AND (didn't have before OR fields changed)
-      if (shouldHaveMovement && (!hadMovement || inventoryFieldsChanged)) {
-        let conversionFactor = 1
-        const effectiveProductUomId = dto.product_uom_id !== undefined ? dto.product_uom_id : expense.product_uom_id
-        if (effectiveProductUomId) {
-          const uom = await productUomsRepository.findById(effectiveProductUomId)
-          if (uom) {
-            conversionFactor = Number(uom.conversion_factor) || 1
+          // Check balance (exclude this expense from sum)
+          const totalOthers = await pettyCashRepository.sumExpensesByRequestId(
+            client,
+            expense.request_id,
+            expenseId,
+          );
+          const available =
+            (lockedRequest.amount_disbursed ?? 0) +
+            lockedRequest.carried_amount;
+          if (totalOthers + dto.amount! > available + 0.01) {
+            throw new PettyCashInsufficientBalanceError(
+              available - totalOthers,
+              dto.amount!,
+            );
           }
         }
 
-        const qty = effectiveQty! * conversionFactor
-        // Priority: explicit unit_price > derived from amount/qty
-        const costPerUnit = effectiveUnitPrice != null && effectiveUnitPrice > 0
-          ? effectiveUnitPrice / conversionFactor
-          : (qty > 0 ? effectiveAmount / qty : effectiveAmount)
+        // Resolve COA when relevant fields change
+        let resolvedCoaId: string | undefined;
+        const coaInputsChanged =
+          dto.expense_coa_id !== undefined ||
+          (dto.category_id !== undefined &&
+            dto.category_id !== expense.category_id) ||
+          dto.product_id !== undefined ||
+          dto.warehouse_id !== undefined;
 
-        const balance = await stockRepository.getBalanceForUpdate(client, effectiveWarehouseId!, effectiveProductId!)
-        const currentQty = balance ? Number(balance.qty) : 0
-        const currentAvgCost = balance ? Number(balance.avg_cost) : 0
-        const newQty = currentQty + qty
-        const newAvgCost = newQty > 0
-          ? ((currentQty * currentAvgCost) + (qty * costPerUnit)) / newQty
-          : costPerUnit
+        if (coaInputsChanged) {
+          const effectiveCategoryId = dto.category_id ?? expense.category_id;
+          const categoryMeta =
+            await pettyCashRepository.findCategoryWithInventoryFlag(
+              effectiveCategoryId,
+              client,
+            );
+          if (!categoryMeta) {
+            throw new PettyCashCoaMissingError(
+              `category_id (${effectiveCategoryId}) tidak ditemukan`,
+            );
+          }
 
-        const movement = await stockRepository.createMovement(client, {
-          warehouse_id: effectiveWarehouseId!,
-          product_id: effectiveProductId!,
-          movement_type: 'IN_PURCHASE',
-          qty,
-          cost_per_unit: costPerUnit,
-          reference_type: 'petty_cash' as any,
-          reference_id: expense.request_id,
-          notes: `Petty cash: ${updatedExpense.description || ''}`,
-          movement_date: updatedExpense.expense_date,
-          created_by: userId,
-        }, newQty)
+          let assetCategoryId: string | null = null;
+          if (expense.fixed_asset_id) {
+            const { rows } = await client.query<{ asset_category_id: string }>(
+              "SELECT asset_category_id FROM fixed_assets WHERE id = $1",
+              [expense.fixed_asset_id],
+            );
+            assetCategoryId = rows[0]?.asset_category_id ?? null;
+          }
 
-        await stockRepository.upsertBalance(client, effectiveWarehouseId!, effectiveProductId!, newQty, newAvgCost)
-        await pettyCashRepository.updateExpenseStockMovementId(client, expenseId, movement.id)
-      }
+          resolvedCoaId = await resolveExpenseCoaId(client, companyId, {
+            expense_coa_id: dto.expense_coa_id,
+            asset_category_id: assetCategoryId,
+            category_default_coa_id: categoryMeta?.default_coa_id ?? null,
+            product_id:
+              dto.product_id !== undefined
+                ? dto.product_id
+                : expense.product_id,
+            warehouse_id:
+              dto.warehouse_id !== undefined
+                ? dto.warehouse_id
+                : expense.warehouse_id,
+          });
+        }
 
-      return updatedExpense
-    })
+        // Build update payload (only changed fields)
+        const updateData: Record<string, unknown> = {};
+        if (dto.expense_date !== undefined)
+          updateData.expense_date = dto.expense_date;
+        if (dto.amount !== undefined) updateData.amount = dto.amount;
+        if (dto.description !== undefined)
+          updateData.description = dto.description;
+        if (dto.category_id !== undefined)
+          updateData.category_id = dto.category_id;
+        if (dto.sub_category_id !== undefined)
+          updateData.sub_category_id = dto.sub_category_id;
+        if (resolvedCoaId) updateData.expense_coa_id = resolvedCoaId;
+        if (dto.product_id !== undefined)
+          updateData.product_id = dto.product_id;
+        if (dto.product_uom_id !== undefined)
+          updateData.product_uom_id = dto.product_uom_id;
+        if (dto.qty !== undefined) updateData.qty = dto.qty;
+        if (dto.unit_price !== undefined)
+          updateData.unit_price = dto.unit_price;
+        if (dto.warehouse_id !== undefined)
+          updateData.warehouse_id = dto.warehouse_id;
+        if (dto.receipt_url !== undefined)
+          updateData.receipt_url = dto.receipt_url;
 
-    await AuditService.log('UPDATE', 'petty_cash_expenses', expenseId, userId,
+        if (Object.keys(updateData).length === 0) {
+          return expense; // nothing to update
+        }
+
+        const updatedExpense = await pettyCashRepository.updateExpense(
+          client,
+          expenseId,
+          updateData,
+          userId,
+        );
+
+        // Stock movement handling: reverse old + create new if inventory fields changed
+        const effectiveProductId =
+          dto.product_id !== undefined ? dto.product_id : expense.product_id;
+        const effectiveWarehouseId =
+          dto.warehouse_id !== undefined
+            ? dto.warehouse_id
+            : expense.warehouse_id;
+        const effectiveQty = dto.qty !== undefined ? dto.qty : expense.qty;
+        const effectiveUnitPrice =
+          dto.unit_price !== undefined ? dto.unit_price : expense.unit_price;
+        const effectiveAmount =
+          dto.amount !== undefined ? dto.amount : expense.amount;
+
+        const hadMovement = !!expense.stock_movement_id;
+        const shouldHaveMovement =
+          !!effectiveProductId &&
+          !!effectiveWarehouseId &&
+          !!effectiveQty &&
+          effectiveQty > 0;
+
+        const inventoryFieldsChanged =
+          hadMovement &&
+          (dto.product_id !== undefined ||
+            dto.warehouse_id !== undefined ||
+            dto.qty !== undefined ||
+            dto.unit_price !== undefined ||
+            dto.amount !== undefined);
+
+        // Reverse old movement if it existed AND (fields changed OR no longer inventory)
+        if (hadMovement && (inventoryFieldsChanged || !shouldHaveMovement)) {
+          const oldMovement = await pettyCashRepository.findStockMovementById(
+            client,
+            expense.stock_movement_id!,
+          );
+          if (oldMovement) {
+            const balance = await stockRepository.getBalanceForUpdate(
+              client,
+              oldMovement.warehouse_id,
+              oldMovement.product_id,
+            );
+            const currentQty = balance ? Number(balance.qty) : 0;
+            const currentAvgCost = balance ? Number(balance.avg_cost) : 0;
+            const newQty = currentQty - Number(oldMovement.qty);
+
+            await stockRepository.createMovement(
+              client,
+              {
+                warehouse_id: oldMovement.warehouse_id,
+                product_id: oldMovement.product_id,
+                movement_type: "OUT_REVERSAL",
+                qty: Number(oldMovement.qty),
+                cost_per_unit: Number(oldMovement.cost_per_unit),
+                reference_type: "petty_cash" as any,
+                reference_id: expense.request_id,
+                notes: `Update expense — reversal`,
+                movement_date: oldMovement.movement_date,
+                created_by: userId,
+              },
+              newQty,
+            );
+
+            await stockRepository.upsertBalance(
+              client,
+              oldMovement.warehouse_id,
+              oldMovement.product_id,
+              newQty,
+              currentAvgCost,
+            );
+            await pettyCashRepository.clearExpenseStockMovementId(
+              client,
+              expenseId,
+            );
+          }
+        }
+
+        // Create new movement if should have one AND (didn't have before OR fields changed)
+        if (shouldHaveMovement && (!hadMovement || inventoryFieldsChanged)) {
+          let conversionFactor = 1;
+          const effectiveProductUomId =
+            dto.product_uom_id !== undefined
+              ? dto.product_uom_id
+              : expense.product_uom_id;
+          if (effectiveProductUomId) {
+            const uom = await productUomsRepository.findById(
+              effectiveProductUomId,
+            );
+            if (uom) {
+              conversionFactor = Number(uom.conversion_factor) || 1;
+            }
+          }
+
+          const qty = effectiveQty! * conversionFactor;
+          // Priority: explicit unit_price > derived from amount/qty
+          const costPerUnit =
+            effectiveUnitPrice != null && effectiveUnitPrice > 0
+              ? effectiveUnitPrice / conversionFactor
+              : qty > 0
+                ? effectiveAmount / qty
+                : effectiveAmount;
+
+          const balance = await stockRepository.getBalanceForUpdate(
+            client,
+            effectiveWarehouseId!,
+            effectiveProductId!,
+          );
+          const currentQty = balance ? Number(balance.qty) : 0;
+          const currentAvgCost = balance ? Number(balance.avg_cost) : 0;
+          const newQty = currentQty + qty;
+          const newAvgCost =
+            newQty > 0
+              ? (currentQty * currentAvgCost + qty * costPerUnit) / newQty
+              : costPerUnit;
+
+          const movement = await stockRepository.createMovement(
+            client,
+            {
+              warehouse_id: effectiveWarehouseId!,
+              product_id: effectiveProductId!,
+              movement_type: "IN_PURCHASE",
+              qty,
+              cost_per_unit: costPerUnit,
+              reference_type: "petty_cash" as any,
+              reference_id: expense.request_id,
+              notes: `Petty cash: ${updatedExpense.description || ""}`,
+              movement_date: updatedExpense.expense_date,
+              created_by: userId,
+            },
+            newQty,
+          );
+
+          await stockRepository.upsertBalance(
+            client,
+            effectiveWarehouseId!,
+            effectiveProductId!,
+            newQty,
+            newAvgCost,
+          );
+          await pettyCashRepository.updateExpenseStockMovementId(
+            client,
+            expenseId,
+            movement.id,
+          );
+        }
+
+        return updatedExpense;
+      },
+    );
+
+    await AuditService.log(
+      "UPDATE",
+      "petty_cash_expenses",
+      expenseId,
+      userId,
       { amount: expense.amount, category_id: expense.category_id },
       { amount: updated.amount, category_id: updated.category_id },
-    )
-    logInfo('Petty cash expense updated', { id: expenseId, request_id: expense.request_id })
+    );
+    logInfo("Petty cash expense updated", {
+      id: expenseId,
+      request_id: expense.request_id,
+    });
 
-    return updated
+    return updated;
   }
 
   // ─── DELETE EXPENSE ─────────────────────────────────────────────────────────
@@ -738,23 +1070,25 @@ export class PettyCashService {
     branchIds: string[],
     userId: string,
   ): Promise<void> {
-    const expense = await pettyCashRepository.findExpenseById(expenseId)
-    if (!expense) throw new PettyCashExpenseNotFoundError(expenseId)
-    if (expense.settlement_id) throw new PettyCashExpenseAlreadySettledError(expenseId)
+    const expense = await pettyCashRepository.findExpenseById(expenseId);
+    if (!expense) throw new PettyCashExpenseNotFoundError(expenseId);
+    if (expense.settlement_id)
+      throw new PettyCashExpenseAlreadySettledError(expenseId);
 
-    const request = await pettyCashRepository.findById(expense.request_id)
-    if (!request) throw new PettyCashRequestNotFoundError(expense.request_id)
-    requireBranchAccess(request.branch_id, branchIds)
+    const request = await pettyCashRepository.findById(expense.request_id);
+    if (!request) throw new PettyCashRequestNotFoundError(expense.request_id);
+    requireBranchAccess(request.branch_id, branchIds);
 
-    if (request.status !== 'DISBURSED') {
-      throw new PettyCashInvalidStatusError(request.status, 'DISBURSED')
+    if (request.status !== "DISBURSED") {
+      throw new PettyCashInvalidStatusError(request.status, "DISBURSED");
     }
 
     await pettyCashRepository.withTransaction(async (client) => {
-      const companyId = request.company_id
+      const companyId = request.company_id;
 
       if (expense.fixed_asset_id) {
-        const revertQty = expense.qty != null && expense.qty > 0 ? expense.qty : 1
+        const revertQty =
+          expense.qty != null && expense.qty > 0 ? expense.qty : 1;
 
         const pooledReverted = await revertPooledPettyCashExpense(client, {
           company_id: companyId,
@@ -763,75 +1097,114 @@ export class PettyCashService {
           amount: expense.amount,
           qty: expense.qty,
           user_id: userId,
-          revert_reference_type: 'petty_cash_delete',
+          revert_reference_type: "petty_cash_delete",
           revert_notes: `Revert pool merge dari hapus expense kas kecil: -${revertQty} unit, -${expense.amount} cost`,
-        })
+        });
 
         if (pooledReverted) {
-          await pettyCashRepository.updateExpense(client, expenseId, { fixed_asset_id: null }, userId)
+          await pettyCashRepository.updateExpense(
+            client,
+            expenseId,
+            { fixed_asset_id: null },
+            userId,
+          );
         } else {
           // Single fetch after pooled check — INDIVIDUAL / new-pool DRAFT path
-          const { rows } = await client.query<{ id: string; asset_code: string; status: string }>(
+          const { rows } = await client.query<{
+            id: string;
+            asset_code: string;
+            status: string;
+          }>(
             `SELECT id, asset_code, status FROM fixed_assets
              WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL
              FOR UPDATE`,
             [expense.fixed_asset_id, companyId],
-          )
-          const asset = rows[0]
+          );
+          const asset = rows[0];
 
           if (!asset) {
             // Defensive: expense still references an asset that no longer exists
-            logInfo('Petty cash delete: clearing orphan fixed_asset_id', {
+            logInfo("Petty cash delete: clearing orphan fixed_asset_id", {
               expense_id: expenseId,
               fixed_asset_id: expense.fixed_asset_id,
-            })
-            await pettyCashRepository.updateExpense(client, expenseId, { fixed_asset_id: null }, userId)
-          } else if (asset.status !== 'DRAFT') {
-            throw new PettyCashAssetActiveBlockDeleteError(asset.asset_code)
+            });
+            await pettyCashRepository.updateExpense(
+              client,
+              expenseId,
+              { fixed_asset_id: null },
+              userId,
+            );
+          } else if (asset.status !== "DRAFT") {
+            throw new PettyCashAssetActiveBlockDeleteError(asset.asset_code);
           } else {
-            await pettyCashRepository.updateExpense(client, expenseId, { fixed_asset_id: null }, userId)
-            await hardDeleteAssetById(asset.id, client)
+            await pettyCashRepository.updateExpense(
+              client,
+              expenseId,
+              { fixed_asset_id: null },
+              userId,
+            );
+            await hardDeleteAssetById(asset.id, client);
           }
         }
       }
 
       // Reverse stock movement if exists
       if (expense.stock_movement_id) {
-        const movement = await pettyCashRepository.findStockMovementById(client, expense.stock_movement_id)
+        const movement = await pettyCashRepository.findStockMovementById(
+          client,
+          expense.stock_movement_id,
+        );
         if (movement) {
-          const balance = await stockRepository.getBalanceForUpdate(client, movement.warehouse_id, movement.product_id)
-          const currentQty = balance ? Number(balance.qty) : 0
-          const currentAvgCost = balance ? Number(balance.avg_cost) : 0
-          const newQty = currentQty - Number(movement.qty)
+          const balance = await stockRepository.getBalanceForUpdate(
+            client,
+            movement.warehouse_id,
+            movement.product_id,
+          );
+          const currentQty = balance ? Number(balance.qty) : 0;
+          const currentAvgCost = balance ? Number(balance.avg_cost) : 0;
+          const newQty = currentQty - Number(movement.qty);
 
-          await stockRepository.createMovement(client, {
-            warehouse_id: movement.warehouse_id,
-            product_id: movement.product_id,
-            movement_type: 'OUT_REVERSAL',
-            qty: Number(movement.qty),
-            cost_per_unit: Number(movement.cost_per_unit),
-            reference_type: 'petty_cash' as any,
-            reference_id: expense.request_id,
-            notes: `Delete expense — reversal`,
-            movement_date: movement.movement_date,
-            created_by: userId,
-          }, newQty)
+          await stockRepository.createMovement(
+            client,
+            {
+              warehouse_id: movement.warehouse_id,
+              product_id: movement.product_id,
+              movement_type: "OUT_REVERSAL",
+              qty: Number(movement.qty),
+              cost_per_unit: Number(movement.cost_per_unit),
+              reference_type: "petty_cash" as any,
+              reference_id: expense.request_id,
+              notes: `Delete expense — reversal`,
+              movement_date: movement.movement_date,
+              created_by: userId,
+            },
+            newQty,
+          );
 
-          await stockRepository.upsertBalance(client, movement.warehouse_id, movement.product_id, newQty, currentAvgCost)
+          await stockRepository.upsertBalance(
+            client,
+            movement.warehouse_id,
+            movement.product_id,
+            newQty,
+            currentAvgCost,
+          );
         }
       }
 
-      await pettyCashRepository.softDeleteExpense(expenseId, userId, client)
-    })
+      await pettyCashRepository.softDeleteExpense(expenseId, userId, client);
+    });
 
-
-    await AuditService.log('DELETE', 'petty_cash_expenses', expenseId, userId, {
+    await AuditService.log("DELETE", "petty_cash_expenses", expenseId, userId, {
       amount: expense.amount,
       category_id: expense.category_id,
       request_id: expense.request_id,
       stock_reversed: !!expense.stock_movement_id,
-    })
-    logInfo('Petty cash expense deleted', { id: expenseId, request_id: expense.request_id, stock_reversed: !!expense.stock_movement_id })
+    });
+    logInfo("Petty cash expense deleted", {
+      id: expenseId,
+      request_id: expense.request_id,
+      stock_reversed: !!expense.stock_movement_id,
+    });
   }
 
   // ─── CREATE SETTLEMENT ──────────────────────────────────────────────────────
@@ -843,260 +1216,371 @@ export class PettyCashService {
     userId: string,
   ): Promise<PettyCashSettlement> {
     // Fast-fail pre-checks
-    const request = await pettyCashRepository.findById(requestId)
-    if (!request) throw new PettyCashRequestNotFoundError(requestId)
-    requireBranchAccess(request.branch_id, branchIds)
+    const request = await pettyCashRepository.findById(requestId);
+    if (!request) throw new PettyCashRequestNotFoundError(requestId);
+    requireBranchAccess(request.branch_id, branchIds);
 
     if (dto.amount_returned < 0) {
-      throw new PettyCashInvalidStatusError('amount_returned cannot be negative', '>= 0')
+      throw new PettyCashInvalidStatusError(
+        "amount_returned cannot be negative",
+        ">= 0",
+      );
     }
     if (dto.amount_returned > 0 && !dto.return_bank_account_id) {
-      throw new PettyCashReturnBankRequiredError()
+      throw new PettyCashReturnBankRequiredError();
     }
-    if (dto.refill_amount && dto.refill_amount > 0 && !dto.refill_bank_account_id) {
-      throw new PettyCashRefillBankRequiredError()
+    if (
+      dto.refill_amount &&
+      dto.refill_amount > 0 &&
+      !dto.refill_bank_account_id
+    ) {
+      throw new PettyCashRefillBankRequiredError();
     }
 
-    const companyId = request.company_id
-    const TOLERANCE = 1000
+    const companyId = request.company_id;
+    const TOLERANCE = 1000;
 
     // All steps in 1 transaction
-    const settlement = await pettyCashRepository.withTransaction(async (client) => {
-      // ── STEP 1 — Lock & validate request ──────────────────────────────────
-      await client.query(
-        'SELECT pg_advisory_xact_lock(hashtext($1))',
-        [`petty_cash_request_balance:${requestId}`],
-      )
+    const settlement = await pettyCashRepository.withTransaction(
+      async (client) => {
+        // ── STEP 1 — Lock & validate request ──────────────────────────────────
+        await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [
+          `petty_cash_request_balance:${requestId}`,
+        ]);
 
-      const lockedRequest = await pettyCashRepository.findByIdForUpdate(client, requestId)
-      if (!lockedRequest || lockedRequest.status !== 'DISBURSED') {
-        throw new PettyCashInvalidStatusError(lockedRequest?.status ?? 'NOT_FOUND', 'DISBURSED')
-      }
-
-      // Check no existing settlement
-      const existingSettlement = await pettyCashRepository.findSettlementByRequestId(client, requestId)
-      if (existingSettlement) {
-        throw new PettyCashSettlementExistsError(requestId)
-      }
-
-      // ── STEP 2 — Calculate totals ─────────────────────────────────────────
-      const totalDisbursed = (lockedRequest.amount_disbursed ?? 0) + lockedRequest.carried_amount
-      const totalExpenses = await pettyCashRepository.sumExpensesByRequestId(client, requestId)
-      const remainingBalance = totalDisbursed - totalExpenses
-
-      if (remainingBalance < -0.01) {
-        throw new PettyCashNegativeBalanceError(remainingBalance)
-      }
-
-      // ── STEP 3 — Validate allocation ──────────────────────────────────────
-      let carriedToAmount = remainingBalance - dto.amount_returned
-      if (carriedToAmount < -TOLERANCE) {
-        throw new PettyCashReturnExceedsBalanceError(remainingBalance, dto.amount_returned)
-      }
-      if (carriedToAmount < 0) carriedToAmount = 0 // clamp within tolerance
-
-      // ── STEP 4 — Group expenses by COA ────────────────────────────────────
-      const coaGroups = await pettyCashRepository.getExpenseCoaGrouped(client, requestId)
-
-      // Resolve return bank COA if needed
-      let returnBankCoaId: string | null = null
-      if (dto.amount_returned > 0) {
-        returnBankCoaId = await pettyCashRepository.findBankCoaId(client, dto.return_bank_account_id!, companyId)
-        if (!returnBankCoaId) {
-          throw new PettyCashCoaMissingError(
-            `Bank account pengembalian (id: ${dto.return_bank_account_id}) tidak memiliki COA mapping`,
-          )
+        const lockedRequest = await pettyCashRepository.findByIdForUpdate(
+          client,
+          requestId,
+        );
+        if (!lockedRequest || lockedRequest.status !== "DISBURSED") {
+          throw new PettyCashInvalidStatusError(
+            lockedRequest?.status ?? "NOT_FOUND",
+            "DISBURSED",
+          );
         }
-      }
 
-      // ── STEP 5 — Insert settlement (journal_id = NULL for now) ────────────
-      const settlementDate = dto.settlement_date ?? new Date().toISOString().slice(0, 10)
-      const settlementRow = await pettyCashRepository.insertSettlement(client, {
-        request_id: requestId,
-        company_id: companyId,
-        branch_id: lockedRequest.branch_id,
-        settlement_date: settlementDate,
-        total_disbursed: totalDisbursed,
-        total_expenses: totalExpenses,
-        remaining_balance: remainingBalance,
-        amount_returned: dto.amount_returned,
-        return_bank_account_id: dto.return_bank_account_id,
-        notes: dto.notes,
-        created_by: userId,
-      })
+        // Check no existing settlement
+        const existingSettlement =
+          await pettyCashRepository.findSettlementByRequestId(
+            client,
+            requestId,
+          );
+        if (existingSettlement) {
+          throw new PettyCashSettlementExistsError(requestId);
+        }
 
-      // ── STEP 6 — Create settlement journal + auto-post ────────────────────
-      const creditAmount = totalExpenses + dto.amount_returned
-      const desc = `Settlement Kas Kecil — ${lockedRequest.request_number}`
-      let lineNum = 1
+        // ── STEP 2 — Calculate totals ─────────────────────────────────────────
+        const totalDisbursed =
+          (lockedRequest.amount_disbursed ?? 0) + lockedRequest.carried_amount;
+        const totalExpenses = await pettyCashRepository.sumExpensesByRequestId(
+          client,
+          requestId,
+        );
+        const remainingBalance = totalDisbursed - totalExpenses;
 
-      const journalLines: Array<{ line_number: number; account_id: string; description: string; debit_amount: number; credit_amount: number }> = []
+        if (remainingBalance < -0.01) {
+          throw new PettyCashNegativeBalanceError(remainingBalance);
+        }
 
-      // DEBIT lines: 1 per unique expense_coa_id
-      for (const group of coaGroups) {
-        journalLines.push({
-          line_number: lineNum++,
-          account_id: group.expense_coa_id,
-          description: desc,
-          debit_amount: group.total_amount,
-          credit_amount: 0,
-        })
-      }
+        // ── STEP 3 — Validate allocation ──────────────────────────────────────
+        let carriedToAmount = remainingBalance - dto.amount_returned;
+        if (carriedToAmount < -TOLERANCE) {
+          throw new PettyCashReturnExceedsBalanceError(
+            remainingBalance,
+            dto.amount_returned,
+          );
+        }
+        if (carriedToAmount < 0) carriedToAmount = 0; // clamp within tolerance
 
-      // DEBIT line: return to bank (if any)
-      if (dto.amount_returned > 0 && returnBankCoaId) {
-        journalLines.push({
-          line_number: lineNum++,
-          account_id: returnBankCoaId,
-          description: `Pengembalian sisa kas kecil — ${lockedRequest.request_number}`,
-          debit_amount: dto.amount_returned,
-          credit_amount: 0,
-        })
-      }
+        // ── STEP 4 — Group expenses by COA ────────────────────────────────────
+        const coaGroups = await pettyCashRepository.getExpenseCoaGrouped(
+          client,
+          requestId,
+        );
 
-      // CREDIT line: petty cash COA
-      journalLines.push({
-        line_number: lineNum++,
-        account_id: lockedRequest.petty_cash_coa_id,
-        description: desc,
-        debit_amount: 0,
-        credit_amount: creditAmount,
-      })
-
-      const journal = await journalHeadersService.create(
-        {
-          company_id: companyId,
-          branch_id: lockedRequest.branch_id,
-          journal_date: settlementDate,
-          journal_type: 'CASH',
-          description: desc,
-          source_module: 'petty_cash',
-          reference_type: 'petty_cash_settlement',
-          reference_id: settlementRow.id,
-          reference_number: lockedRequest.request_number,
-          currency: 'IDR',
-          exchange_rate: 1,
-          lines: journalLines,
-        },
-        userId,
-        client,
-      )
-
-      // Auto-post
-      await journalHeadersService.submitAsUser(journal.id, userId, client)
-      await journalHeadersService.approveAsUser(journal.id, userId, client)
-      await journalHeadersService.postAsUser(journal.id, userId, client)
-
-      // ── STEP 6b — Capitalize linked fixed assets (DRAFT → ACTIVE) ───────────
-      await capitalizeAssetsFromPettyCashSettlement(client, {
-        company_id: companyId,
-        request_id: requestId,
-        settlement_id: settlementRow.id,
-        journal_id: journal.id,
-        capitalized_date: settlementDate,
-        user_id: userId,
-      })
-
-      // ── STEP 7 — Link expenses to settlement ─────────────────────────────
-      // Note: Stock movements already created per-expense at input time (Option B).
-      // Settlement only handles journal + close.
-      await pettyCashRepository.setExpensesSettlementId(client, requestId, settlementRow.id)
-
-      // ── STEP 8 — Close request ───────────────────────────────────────────
-      await pettyCashRepository.updateStatusToClosed(client, requestId, userId)
-
-      // ── STEP 9 — Refill logic (3 scenarios) ─────────────────────────────
-      let carriedToId: string | null = null
-
-      if (carriedToAmount > 0 || (dto.refill_amount && dto.refill_amount > 0)) {
-        // Generate number for new request
-        const branchCode = await pettyCashRepository.findBranchCode(client, lockedRequest.branch_id)
-        const newRequestNumber = await pettyCashRepository.generateRequestNumber(client, companyId, branchCode)
-
-        const refillAmount = dto.refill_amount ?? 0
-
-        // 10a. Create new request FIRST (disburse_journal_id = NULL for now)
-        const newRequest = await pettyCashRepository.createCarriedRequest(client, {
-          company_id: companyId,
-          branch_id: lockedRequest.branch_id,
-          request_number: newRequestNumber,
-          amount_requested: refillAmount,
-          amount_disbursed: refillAmount,
-          carried_amount: carriedToAmount,
-          carried_from_id: requestId,
-          petty_cash_coa_id: lockedRequest.petty_cash_coa_id,
-          source_bank_account_id: refillAmount > 0 ? (dto.refill_bank_account_id ?? null) : null,
-          disburse_journal_id: null,
-          created_by: userId,
-        })
-
-        // 10b. If refill_amount > 0 (Skenario B): create disburse journal for NEW request
-        if (refillAmount > 0) {
-          const refillBankCoaId = await pettyCashRepository.findBankCoaId(
-            client, dto.refill_bank_account_id!, companyId,
-          )
-          if (!refillBankCoaId) {
+        // Resolve return bank COA if needed
+        let returnBankCoaId: string | null = null;
+        if (dto.amount_returned > 0) {
+          returnBankCoaId = await pettyCashRepository.findBankCoaId(
+            client,
+            dto.return_bank_account_id!,
+            companyId,
+          );
+          if (!returnBankCoaId) {
             throw new PettyCashCoaMissingError(
-              `Bank account refill (id: ${dto.refill_bank_account_id}) tidak memiliki COA mapping`,
-            )
+              `Bank account pengembalian (id: ${dto.return_bank_account_id}) tidak memiliki COA mapping`,
+            );
           }
+        }
 
-          const refillDesc = `Pencairan Kas Kecil — ${newRequestNumber}`
-          const refillJournal = await journalHeadersService.create(
+        // ── STEP 5 — Insert settlement (journal_id = NULL for now) ────────────
+        const settlementDate =
+          dto.settlement_date ?? new Date().toISOString().slice(0, 10);
+        const settlementRow = await pettyCashRepository.insertSettlement(
+          client,
+          {
+            request_id: requestId,
+            company_id: companyId,
+            branch_id: lockedRequest.branch_id,
+            settlement_date: settlementDate,
+            total_disbursed: totalDisbursed,
+            total_expenses: totalExpenses,
+            remaining_balance: remainingBalance,
+            amount_returned: dto.amount_returned,
+            return_bank_account_id: dto.return_bank_account_id,
+            notes: dto.notes,
+            created_by: userId,
+          },
+        );
+
+        // ── STEP 6 — Create settlement journal + auto-post ────────────────────
+        const creditAmount = totalExpenses + dto.amount_returned;
+        const desc = `Settlement Petty Cash — ${lockedRequest.request_number}`;
+        let lineNum = 1;
+
+        const journalLines: Array<{
+          line_number: number;
+          account_id: string;
+          description: string;
+          debit_amount: number;
+          credit_amount: number;
+        }> = [];
+
+        // DEBIT lines: 1 per unique expense_coa_id
+        for (const group of coaGroups) {
+          journalLines.push({
+            line_number: lineNum++,
+            account_id: group.expense_coa_id,
+            description: desc,
+            debit_amount: group.total_amount,
+            credit_amount: 0,
+          });
+        }
+
+        // DEBIT line: return to bank (if any)
+        if (dto.amount_returned > 0 && returnBankCoaId) {
+          journalLines.push({
+            line_number: lineNum++,
+            account_id: returnBankCoaId,
+            description: `Pengembalian sisa petty cash — ${lockedRequest.request_number}`,
+            debit_amount: dto.amount_returned,
+            credit_amount: 0,
+          });
+        }
+
+        // CREDIT line: petty cash COA
+        journalLines.push({
+          line_number: lineNum++,
+          account_id: lockedRequest.petty_cash_coa_id,
+          description: desc,
+          debit_amount: 0,
+          credit_amount: creditAmount,
+        });
+
+        const journal = await journalHeadersService.create(
+          {
+            company_id: companyId,
+            branch_id: lockedRequest.branch_id,
+            journal_date: settlementDate,
+            journal_type: "CASH",
+            description: desc,
+            source_module: "petty_cash",
+            reference_type: "petty_cash_settlement",
+            reference_id: settlementRow.id,
+            reference_number: lockedRequest.request_number,
+            currency: "IDR",
+            exchange_rate: 1,
+            lines: journalLines,
+          },
+          userId,
+          client,
+        );
+
+        // Auto-post
+        await journalHeadersService.submitAsUser(journal.id, userId, client);
+        await journalHeadersService.approveAsUser(journal.id, userId, client);
+        await journalHeadersService.postAsUser(journal.id, userId, client);
+
+        // ── STEP 6b — Capitalize linked fixed assets (DRAFT → ACTIVE) ───────────
+        await capitalizeAssetsFromPettyCashSettlement(client, {
+          company_id: companyId,
+          request_id: requestId,
+          settlement_id: settlementRow.id,
+          journal_id: journal.id,
+          capitalized_date: settlementDate,
+          user_id: userId,
+        });
+
+        // ── STEP 7 — Link expenses to settlement ─────────────────────────────
+        // Note: Stock movements already created per-expense at input time (Option B).
+        // Settlement only handles journal + close.
+        await pettyCashRepository.setExpensesSettlementId(
+          client,
+          requestId,
+          settlementRow.id,
+        );
+
+        // ── STEP 8 — Close request ───────────────────────────────────────────
+        await pettyCashRepository.updateStatusToClosed(
+          client,
+          requestId,
+          userId,
+        );
+
+        // ── STEP 9 — Refill logic (3 scenarios) ─────────────────────────────
+        let carriedToId: string | null = null;
+
+        if (
+          carriedToAmount > 0 ||
+          (dto.refill_amount && dto.refill_amount > 0)
+        ) {
+          // Generate number for new request
+          const branchCode = await pettyCashRepository.findBranchCode(
+            client,
+            lockedRequest.branch_id,
+          );
+          const newRequestNumber =
+            await pettyCashRepository.generateRequestNumber(
+              client,
+              companyId,
+              branchCode,
+            );
+
+          const refillAmount = dto.refill_amount ?? 0;
+
+          // 10a. Create new request FIRST (disburse_journal_id = NULL for now)
+          const newRequest = await pettyCashRepository.createCarriedRequest(
+            client,
             {
               company_id: companyId,
               branch_id: lockedRequest.branch_id,
-              journal_date: settlementDate,
-              journal_type: 'CASH',
-              description: refillDesc,
-              source_module: 'petty_cash',
-              reference_type: 'petty_cash_disburse',
-              reference_id: newRequest.id,
-              reference_number: newRequestNumber,
-              currency: 'IDR',
-              exchange_rate: 1,
-              lines: [
-                { line_number: 1, account_id: lockedRequest.petty_cash_coa_id, description: refillDesc, debit_amount: refillAmount, credit_amount: 0 },
-                { line_number: 2, account_id: refillBankCoaId, description: refillDesc, debit_amount: 0, credit_amount: refillAmount },
-              ],
+              request_number: newRequestNumber,
+              amount_requested: refillAmount,
+              amount_disbursed: refillAmount,
+              carried_amount: carriedToAmount,
+              carried_from_id: requestId,
+              petty_cash_coa_id: lockedRequest.petty_cash_coa_id,
+              source_bank_account_id:
+                refillAmount > 0 ? (dto.refill_bank_account_id ?? null) : null,
+              disburse_journal_id: null,
+              created_by: userId,
             },
-            userId,
-            client,
-          )
+          );
 
-          await journalHeadersService.submitAsUser(refillJournal.id, userId, client)
-          await journalHeadersService.approveAsUser(refillJournal.id, userId, client)
-          await journalHeadersService.postAsUser(refillJournal.id, userId, client)
+          // 10b. If refill_amount > 0 (Skenario B): create disburse journal for NEW request
+          if (refillAmount > 0) {
+            const refillBankCoaId = await pettyCashRepository.findBankCoaId(
+              client,
+              dto.refill_bank_account_id!,
+              companyId,
+            );
+            if (!refillBankCoaId) {
+              throw new PettyCashCoaMissingError(
+                `Bank account refill (id: ${dto.refill_bank_account_id}) tidak memiliki COA mapping`,
+              );
+            }
 
-          // 10c. Link journal back to new request
-          await pettyCashRepository.setDisburseJournalId(client, newRequest.id, refillJournal.id)
+            const refillDesc = `Pencairan Petty Cash — ${newRequestNumber}`;
+            const refillJournal = await journalHeadersService.create(
+              {
+                company_id: companyId,
+                branch_id: lockedRequest.branch_id,
+                journal_date: settlementDate,
+                journal_type: "CASH",
+                description: refillDesc,
+                source_module: "petty_cash",
+                reference_type: "petty_cash_disburse",
+                reference_id: newRequest.id,
+                reference_number: newRequestNumber,
+                currency: "IDR",
+                exchange_rate: 1,
+                lines: [
+                  {
+                    line_number: 1,
+                    account_id: lockedRequest.petty_cash_coa_id,
+                    description: refillDesc,
+                    debit_amount: refillAmount,
+                    credit_amount: 0,
+                  },
+                  {
+                    line_number: 2,
+                    account_id: refillBankCoaId,
+                    description: refillDesc,
+                    debit_amount: 0,
+                    credit_amount: refillAmount,
+                  },
+                ],
+              },
+              userId,
+              client,
+            );
+
+            await journalHeadersService.submitAsUser(
+              refillJournal.id,
+              userId,
+              client,
+            );
+            await journalHeadersService.approveAsUser(
+              refillJournal.id,
+              userId,
+              client,
+            );
+            await journalHeadersService.postAsUser(
+              refillJournal.id,
+              userId,
+              client,
+            );
+
+            // 10c. Link journal back to new request
+            await pettyCashRepository.setDisburseJournalId(
+              client,
+              newRequest.id,
+              refillJournal.id,
+            );
+          }
+          // Skenario A (pure carry): refillAmount = 0, no journal, disburse_journal_id stays NULL
+
+          carriedToId = newRequest.id;
         }
-        // Skenario A (pure carry): refillAmount = 0, no journal, disburse_journal_id stays NULL
+        // Skenario C: carriedToAmount = 0 AND refill_amount = 0 → no new request
 
-        carriedToId = newRequest.id
-      }
-      // Skenario C: carriedToAmount = 0 AND refill_amount = 0 → no new request
+        // ── STEP 10 — Update settlement with journal_id and carried_to_id ─────
+        await pettyCashRepository.updateSettlementJournalAndCarry(
+          client,
+          settlementRow.id,
+          journal.id,
+          carriedToId,
+        );
 
-      // ── STEP 10 — Update settlement with journal_id and carried_to_id ─────
-      await pettyCashRepository.updateSettlementJournalAndCarry(
-        client, settlementRow.id, journal.id, carriedToId,
-      )
-
-      return { ...settlementRow, journal_id: journal.id, carried_to_id: carriedToId }
-    })
+        return {
+          ...settlementRow,
+          journal_id: journal.id,
+          carried_to_id: carriedToId,
+        };
+      },
+    );
 
     // Audit — outside transaction
-    await AuditService.log('CREATE', 'petty_cash_settlements', settlement.id, userId, undefined, {
+    await AuditService.log(
+      "CREATE",
+      "petty_cash_settlements",
+      settlement.id,
+      userId,
+      undefined,
+      {
+        request_id: requestId,
+        total_expenses: settlement.total_expenses,
+        amount_returned: settlement.amount_returned,
+        carried_to_id: settlement.carried_to_id,
+      },
+    );
+    logInfo("Petty cash settlement created", {
+      id: settlement.id,
       request_id: requestId,
       total_expenses: settlement.total_expenses,
-      amount_returned: settlement.amount_returned,
-      carried_to_id: settlement.carried_to_id,
-    })
-    logInfo('Petty cash settlement created', {
-      id: settlement.id, request_id: requestId, total_expenses: settlement.total_expenses,
-    })
+    });
 
-    return settlement
+    return settlement;
   }
 
   // ─── VOID SETTLEMENT ────────────────────────────────────────────────────────
@@ -1108,42 +1592,62 @@ export class PettyCashService {
     userId: string,
   ): Promise<void> {
     // Fast-fail pre-checks
-    const settlement = await pettyCashRepository.findSettlementById(settlementId)
-    if (!settlement) throw new PettyCashSettlementNotFoundError(settlementId)
+    const settlement =
+      await pettyCashRepository.findSettlementById(settlementId);
+    if (!settlement) throw new PettyCashSettlementNotFoundError(settlementId);
 
-    const request = await pettyCashRepository.findById(settlement.request_id)
-    if (!request) throw new PettyCashRequestNotFoundError(settlement.request_id)
-    requireBranchAccess(request.branch_id, branchIds)
+    const request = await pettyCashRepository.findById(settlement.request_id);
+    if (!request)
+      throw new PettyCashRequestNotFoundError(settlement.request_id);
+    requireBranchAccess(request.branch_id, branchIds);
 
-    if (request.status !== 'CLOSED') {
-      throw new PettyCashInvalidStatusError(request.status, 'CLOSED')
+    if (request.status !== "CLOSED") {
+      throw new PettyCashInvalidStatusError(request.status, "CLOSED");
     }
 
     // All steps atomic
     await pettyCashRepository.withTransaction(async (client) => {
       // ── STEP 1 — Lock & guard ──────────────────────────────────────────────
-      await client.query(
-        'SELECT pg_advisory_xact_lock(hashtext($1))',
-        [`petty_cash_request_balance:${settlement.request_id}`],
-      )
+      await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [
+        `petty_cash_request_balance:${settlement.request_id}`,
+      ]);
 
-      const lockedRequest = await pettyCashRepository.findByIdForUpdate(client, settlement.request_id)
-      if (!lockedRequest || lockedRequest.status !== 'CLOSED') {
-        throw new PettyCashInvalidStatusError(lockedRequest?.status ?? 'NOT_FOUND', 'CLOSED')
+      const lockedRequest = await pettyCashRepository.findByIdForUpdate(
+        client,
+        settlement.request_id,
+      );
+      if (!lockedRequest || lockedRequest.status !== "CLOSED") {
+        throw new PettyCashInvalidStatusError(
+          lockedRequest?.status ?? "NOT_FOUND",
+          "CLOSED",
+        );
       }
 
       // Guard: check carried_to request
       if (settlement.carried_to_id) {
-        const carriedRequest = await pettyCashRepository.findCarriedRequestForUpdate(client, settlement.carried_to_id)
+        const carriedRequest =
+          await pettyCashRepository.findCarriedRequestForUpdate(
+            client,
+            settlement.carried_to_id,
+          );
         if (carriedRequest) {
           // Block if carried request has a disburse journal (Skenario B already posted)
           if (carriedRequest.disburse_journal_id) {
-            throw new PettyCashVoidBlockedByRefillError(settlement.carried_to_id)
+            throw new PettyCashVoidBlockedByRefillError(
+              settlement.carried_to_id,
+            );
           }
           // Block if carried request has any expenses
-          const expenseCount = await pettyCashRepository.countExpensesByRequestId(settlement.carried_to_id, client)
+          const expenseCount =
+            await pettyCashRepository.countExpensesByRequestId(
+              settlement.carried_to_id,
+              client,
+            );
           if (expenseCount > 0) {
-            throw new PettyCashVoidBlockedByExpenseError(settlement.carried_to_id, expenseCount)
+            throw new PettyCashVoidBlockedByExpenseError(
+              settlement.carried_to_id,
+              expenseCount,
+            );
           }
         }
       }
@@ -1158,40 +1662,65 @@ export class PettyCashService {
         company_id: settlement.company_id,
         request_id: settlement.request_id,
         user_id: userId,
-      })
+      });
 
       if (settlement.journal_id) {
-        await revertAssetsCapitalizedByJournal(client, settlement.journal_id, settlement.company_id, userId)
+        await revertAssetsCapitalizedByJournal(
+          client,
+          settlement.journal_id,
+          settlement.company_id,
+          userId,
+        );
         await journalHeadersService.reverseAsUser(
           settlement.journal_id,
           `Void settlement: ${dto.reason}`,
           userId,
           client,
-        )
+        );
       }
 
       // ── STEP 4 — Hard delete carried_to request (if exists and passed guard)
       if (settlement.carried_to_id) {
-        await pettyCashRepository.hardDeleteRequest(client, settlement.carried_to_id)
+        await pettyCashRepository.hardDeleteRequest(
+          client,
+          settlement.carried_to_id,
+        );
       }
 
       // ── STEP 5 — Reset expenses: settlement_id = NULL ─────────────────────
-      await pettyCashRepository.clearExpensesSettlementId(client, settlement.request_id)
+      await pettyCashRepository.clearExpensesSettlementId(
+        client,
+        settlement.request_id,
+      );
 
       // ── STEP 6 — Hard delete settlement record ────────────────────────────
-      await pettyCashRepository.hardDeleteSettlement(client, settlementId)
+      await pettyCashRepository.hardDeleteSettlement(client, settlementId);
 
       // ── STEP 7 — Revert request → DISBURSED ──────────────────────────────
-      await pettyCashRepository.revertRequestToDisbursed(client, settlement.request_id, userId)
-    })
+      await pettyCashRepository.revertRequestToDisbursed(
+        client,
+        settlement.request_id,
+        userId,
+      );
+    });
 
     // Audit — outside transaction
-    await AuditService.log('DELETE', 'petty_cash_settlements', settlementId, userId, {
+    await AuditService.log(
+      "DELETE",
+      "petty_cash_settlements",
+      settlementId,
+      userId,
+      {
+        request_id: settlement.request_id,
+        total_expenses: settlement.total_expenses,
+        reason: dto.reason,
+      },
+    );
+    logInfo("Petty cash settlement voided", {
+      id: settlementId,
       request_id: settlement.request_id,
-      total_expenses: settlement.total_expenses,
       reason: dto.reason,
-    })
-    logInfo('Petty cash settlement voided', { id: settlementId, request_id: settlement.request_id, reason: dto.reason })
+    });
   }
 
   // ─── RECEIPT UPLOAD ─────────────────────────────────────────────────────────
@@ -1203,38 +1732,43 @@ export class PettyCashService {
     userId: string,
   ): Promise<{ receipt_url: string }> {
     // Validate file extension
-    const ext = resolveDocumentUploadExtension(file)
+    const ext = resolveDocumentUploadExtension(file);
     if (!ext) {
       throw new AppError(
-        `Tipe file tidak didukung. Gunakan: ${DOCUMENT_UPLOAD_EXTENSIONS.join(', ')}`,
+        `Tipe file tidak didukung. Gunakan: ${DOCUMENT_UPLOAD_EXTENSIONS.join(", ")}`,
         400,
-        'INVALID_FILE_TYPE',
-      )
+        "INVALID_FILE_TYPE",
+      );
     }
 
     // Validate expense exists and user has access
-    const expense = await pettyCashRepository.findExpenseById(expenseId)
-    if (!expense) throw new PettyCashExpenseNotFoundError(expenseId)
+    const expense = await pettyCashRepository.findExpenseById(expenseId);
+    if (!expense) throw new PettyCashExpenseNotFoundError(expenseId);
 
-    const request = await pettyCashRepository.findById(expense.request_id)
-    if (!request) throw new PettyCashRequestNotFoundError(expense.request_id)
-    requireBranchAccess(request.branch_id, branchIds)
+    const request = await pettyCashRepository.findById(expense.request_id);
+    if (!request) throw new PettyCashRequestNotFoundError(expense.request_id);
+    requireBranchAccess(request.branch_id, branchIds);
 
     // Block upload if request is not DISBURSED (expense already settled or request rejected)
-    if (request.status !== 'DISBURSED') {
-      throw new PettyCashInvalidStatusError(request.status, 'DISBURSED')
+    if (request.status !== "DISBURSED") {
+      throw new PettyCashInvalidStatusError(request.status, "DISBURSED");
     }
 
     // Upload to R2
-    const fileName = `${expenseId}-${Date.now()}.${ext}`
-    const now = new Date()
-    const storagePath = `${request.company_id}/petty-cash-receipts/${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}/${fileName}`
+    const fileName = `${expenseId}-${Date.now()}.${ext}`;
+    const now = new Date();
+    const storagePath = `${request.company_id}/petty-cash-receipts/${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, "0")}/${fileName}`;
 
-    await storageService.uploadToPath(file.buffer, storagePath, file.mimetype, 'buktisetoran')
-    await pettyCashRepository.updateReceiptUrl(expenseId, storagePath, userId)
+    await storageService.uploadToPath(
+      file.buffer,
+      storagePath,
+      file.mimetype,
+      "buktisetoran",
+    );
+    await pettyCashRepository.updateReceiptUrl(expenseId, storagePath, userId);
 
-    return { receipt_url: storagePath }
+    return { receipt_url: storagePath };
   }
 }
 
-export const pettyCashService = new PettyCashService()
+export const pettyCashService = new PettyCashService();
