@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Dialog, Button, FormField, Textarea } from '@/components/ui'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
-import { useRejectPettyCashRequest } from '../hooks/pettyCash.api'
+import { useRejectPettyCashRequest } from '../api/pettyCash.api'
 
 interface PettyCashRejectModalProps {
   open: boolean

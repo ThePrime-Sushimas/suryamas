@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { Dialog, Button, FormField, Textarea } from '@/components/ui'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
-import { useVoidSettlement } from '../hooks/pettyCash.api'
+import { useVoidSettlement } from '../api/pettyCash.api'
 
 interface PettyCashVoidModalProps {
   open: boolean

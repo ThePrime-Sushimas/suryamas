@@ -1,5 +1,5 @@
 import { usePermissionStore } from '@/features/branch_context/store/permission.store'
-import { usePettyCashRequest } from './pettyCash.api'
+import { usePettyCashRequest } from '../api/pettyCash.api'
 import type { PettyCashExpense } from '../types/pettyCash.types'
 
 export function usePettyCashDetailPage(requestId: string) {

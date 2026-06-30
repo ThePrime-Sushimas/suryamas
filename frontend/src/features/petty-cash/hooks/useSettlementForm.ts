@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
-import { useCreateSettlement } from './pettyCash.api'
+import { useCreateSettlement } from '../api/pettyCash.api'
 import type { PettyCashRequest } from '../types/pettyCash.types'
 
 export type SettlementFormState = {

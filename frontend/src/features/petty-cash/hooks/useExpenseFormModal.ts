@@ -10,7 +10,7 @@ import { useWarehouses } from '@/features/inventory/api/inventory.api'
 import type { Warehouse } from '@/features/inventory/types'
 import { useProductUoms } from '@/features/product-uoms/api/productUoms.api'
 import type { ProductUom } from '@/features/product-uoms/types'
-import { useCreateExpense, useUploadPettyCashReceipt } from './pettyCash.api'
+import { useCreateExpense, useUploadPettyCashReceipt } from '../api/pettyCash.api'
 
 export type ExpenseMode = 'product' | 'operational' | 'asset'
 

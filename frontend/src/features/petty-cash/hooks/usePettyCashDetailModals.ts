@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
-import { useDeleteExpense } from './pettyCash.api'
+import { useDeleteExpense } from '../api/pettyCash.api'
 import type { PettyCashExpense } from '../types/pettyCash.types'
 
 export function usePettyCashDetailModals(requestId: string) {

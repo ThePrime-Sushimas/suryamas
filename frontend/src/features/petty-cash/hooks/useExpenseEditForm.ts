@@ -8,7 +8,7 @@ import { useWarehouses } from '@/features/inventory/api/inventory.api'
 import type { Warehouse } from '@/features/inventory/types'
 import { useProductUoms } from '@/features/product-uoms/api/productUoms.api'
 import type { ProductUom } from '@/features/product-uoms/types'
-import { useUpdateExpense, useUploadPettyCashReceipt } from './pettyCash.api'
+import { useUpdateExpense, useUploadPettyCashReceipt } from '../api/pettyCash.api'
 import type { PettyCashExpense } from '../types/pettyCash.types'
 
 export type ExpenseEditFormState = {

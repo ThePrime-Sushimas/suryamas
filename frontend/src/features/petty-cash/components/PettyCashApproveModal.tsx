@@ -3,7 +3,7 @@ import { Dialog, Button, FormField, Select, Textarea, CurrencyInput } from '@/co
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
 import { useCompanyBankAccounts } from '@/features/ap-payments/hooks/useCompanyBankAccounts'
-import { useApprovePettyCashRequest } from '../hooks/pettyCash.api'
+import { useApprovePettyCashRequest } from '../api/pettyCash.api'
 
 interface PettyCashApproveModalProps {
   open: boolean

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
-import { useCreatePettyCashRequest } from './pettyCash.api'
+import { useCreatePettyCashRequest } from '../api/pettyCash.api'
 
 export type CreatePettyCashRequestForm = {
   branch_id: string
