@@ -46,7 +46,7 @@ export function ExpenseAmountFields({
   if (expenseMode === 'product' && selectedProduct) {
     return (
       <div className="space-y-1.5">
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <FormField label={`Qty (${uomName})`}>
             {({ inputId, describedBy }) => (
               <Input
@@ -122,7 +122,7 @@ export function ExpenseAmountFields({
     const isPooled = selectedAssetCategory?.tracking_method === 'POOLED'
 
     return (
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <FormField
           label="Qty"
           required={isPooled}

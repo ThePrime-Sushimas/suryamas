@@ -99,7 +99,7 @@ export default function PettyCashListPage() {
           <Select
             value={filters.branch_id}
             onChange={(e) => setFilters({ branch_id: e.target.value })}
-            className="min-w-40"
+            className="w-full sm:w-auto sm:min-w-40"
           >
             <option value="">Semua cabang</option>
             {branches.map((b) => (
@@ -114,7 +114,7 @@ export default function PettyCashListPage() {
             onChange={(e) =>
               setFilters({ status: e.target.value as '' | PettyCashRequestStatus })
             }
-            className="min-w-[140px]"
+            className="w-full sm:w-auto sm:min-w-[140px]"
           >
             {STATUS_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
@@ -126,14 +126,14 @@ export default function PettyCashListPage() {
           <DateInput
             value={filters.date_from}
             onChange={(e) => setFilters({ date_from: e.target.value })}
-            className="w-auto"
+            className="w-full sm:w-auto"
             aria-label="Tanggal dari"
           />
 
           <DateInput
             value={filters.date_to}
             onChange={(e) => setFilters({ date_to: e.target.value })}
-            className="w-auto"
+            className="w-full sm:w-auto"
             aria-label="Tanggal sampai"
           />
 

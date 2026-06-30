@@ -54,7 +54,7 @@ export default function PettyCashDetailPage() {
       </Button>
 
       <div className="space-y-4 rounded-xl border border-gray-100 bg-white p-5 dark:border-gray-700 dark:bg-gray-800">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
               {request.request_number}
@@ -63,7 +63,7 @@ export default function PettyCashDetailPage() {
               {request.branch_name} · {request.petty_cash_coa_name}
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               variant="secondary"
               size="sm"
