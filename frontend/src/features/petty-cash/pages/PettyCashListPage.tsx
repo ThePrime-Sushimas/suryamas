@@ -83,7 +83,7 @@ export default function PettyCashListPage() {
   };
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6 p-6">
+    <div className="mx-auto max-w-10xl space-y-6 p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-white">
