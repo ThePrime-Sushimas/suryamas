@@ -1,203 +1,64 @@
-import { useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { useListNavigation } from "@/lib/urlFilters";
-import { PURCHASE_INVOICES_LIST_PATH } from "../constants";
+import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
-  FileText,
   CheckCircle2,
   XCircle,
   Send,
   Trash2,
   Edit,
   AlertCircle,
-  ClipboardCheck,
   Paperclip,
   ExternalLink,
-  Image,
-  Plus,
   Undo2,
   Loader2,
-  Package,
   Scissors,
 } from "lucide-react";
 import api from "@/lib/axios";
 import { PurchaseInvoicePaymentDue } from "../components/PurchaseInvoicePaymentDue";
-import { useToast } from "@/contexts/ToastContext";
 import { parseApiError } from "@/lib/errorParser";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
-import { usePermissionStore } from "@/features/branch_context/store/permission.store";
-import {
-  usePurchaseInvoice,
-  useSubmitPurchaseInvoice,
-  useApprovePurchaseInvoice,
-  useRejectPurchaseInvoice,
-  useDeletePurchaseInvoice,
-  useUnpostPurchaseInvoice,
-  usePurchaseInvoiceAttachments,
-  useSplitPurchaseInvoice,
-} from "../api/purchaseInvoices.api";
 import { PurchaseInvoiceSplitModal } from "../components/PurchaseInvoiceSplitModal";
-import { isStagingInvoiceNumber } from "../utils/purchaseInvoiceStaging";
-import { useEffect } from "react";
-
-const fmtDate = (d: string) =>
-  new Date(d).toLocaleDateString("id-ID", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
-const fmtDateTime = (d: string) =>
-  new Date(d).toLocaleDateString("id-ID", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-const fmtCurrency = (v: number) =>
-  new Intl.NumberFormat("id-ID", {
-    style: "currency",
-    currency: "IDR",
-    minimumFractionDigits: 0,
-  }).format(v);
-
-const STATUS_CONFIG: Record<
-  string,
-  { label: string; color: string; icon: any }
-> = {
-  DRAFT: { label: "Draft", color: "bg-gray-100 text-gray-700", icon: FileText },
-  SUBMITTED: {
-    label: "Submitted",
-    color: "bg-blue-100 text-blue-700",
-    icon: Send,
-  },
-  APPROVED: {
-    label: "Approved",
-    color: "bg-indigo-100 text-indigo-700",
-    icon: CheckCircle2,
-  },
-  REJECTED: {
-    label: "Rejected",
-    color: "bg-red-100 text-red-700",
-    icon: XCircle,
-  },
-  POSTED: { label: "Posted", color: "bg-green-100 text-green-700", icon: ClipboardCheck },
-};
-
-const GP_LINE_STATUS_CONFIG: Record<
-  string,
-  { label: string; color: string }
-> = {
-  PENDING: { label: "Menunggu", color: "bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300" },
-  PROCESSING: { label: "Diproses", color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" },
-  DONE: { label: "Item selesai", color: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200" },
-  CONFIRMED: { label: "Selesai", color: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-blue-300" },
-  REJECTED: { label: "Ditolak", color: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300" },
-};
-
-function normalizeGpLineStatus(status: string): string {
-  return status === "QC_REVIEW" ? "PROCESSING" : status
-}
-
-const fmtQty = (n: number) => new Intl.NumberFormat("id-ID").format(n);
-
-const FILE_TYPE_LABELS: Record<string, string> = {
-  INVOICE: "Invoice",
-  DELIVERY_NOTE: "Delivery Note",
-  SURAT_JALAN: "Surat Jalan",
-  PHOTO_BARANG: "Foto Barang",
-  OTHER: "Lainnya",
-};
-
-const PI_CHARGE_LABELS: Record<string, string> = {
-  DISCOUNT: "Diskon",
-  SHIPPING: "Ongkir",
-  ADMIN_FEE: "Biaya admin",
-  OTHER: "Lainnya",
-};
-
-function AttachmentThumbnail({
-  filePath,
-  isImage,
-  onClick,
-}: {
-  filePath: string;
-  isImage: boolean;
-  onClick?: (url: string) => void;
-}) {
-  const [url, setUrl] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (isImage) {
-      api
-        .get("/storage/signed-url", {
-          params: { path: filePath, bucket: "invoices" },
-        })
-        .then((res) => setUrl(res.data.data.url))
-        .catch(() => {});
-    }
-  }, [filePath, isImage]);
-
-  if (!isImage) {
-    return (
-      <div className="w-12 h-12 flex items-center justify-center bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-100 dark:border-red-900/30">
-        <FileText className="w-6 h-6 text-red-500" />
-      </div>
-    );
-  }
-
-  if (!url) {
-    return (
-      <div className="w-12 h-12 flex items-center justify-center bg-gray-100 dark:bg-gray-800 rounded-lg animate-pulse">
-        <Image className="w-5 h-5 text-gray-400" />
-      </div>
-    );
-  }
-
-  return (
-    <div
-      className="group relative cursor-zoom-in"
-      onClick={() => url && onClick?.(url)}
-    >
-      <img
-        src={url}
-        alt="thumbnail"
-        className="w-12 h-12 object-cover rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm transition-transform group-hover:scale-105"
-      />
-      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center">
-        <ExternalLink className="w-3 h-3 text-white" />
-      </div>
-    </div>
-  );
-}
+import { AttachmentThumbnail } from "../components/AttachmentThumbnail";
+import { PurchaseInvoiceRejectModal } from "../components/PurchaseInvoiceRejectModal";
+import { InvoiceAuditTimeline } from "../components/InvoiceAuditTimeline";
+import { InvoiceGpAuditSection } from "../components/InvoiceGpAuditSection";
+import { usePurchaseInvoiceDetail } from "../hooks/usePurchaseInvoiceDetail";
+import { usePurchaseInvoiceDetailModals } from "../hooks/usePurchaseInvoiceDetailModals";
+import { fmtDate } from "../utils/purchaseInvoice.formatters";
+import { PI_STATUS_CONFIG, FILE_TYPE_LABELS } from "../types/purchaseInvoice.status";
+import { InvoiceLineTable } from "../components/InvoiceLineTable";
+import { InvoiceChargeTable } from "../components/InvoiceChargeTable";
+import { InvoiceTotalsFooter } from "../components/InvoiceTotalsFooter";
+import { useToast } from "@/contexts/ToastContext";
 
 export default function PurchaseInvoiceDetailPage() {
-  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { backToList } = useListNavigation(PURCHASE_INVOICES_LIST_PATH);
   const toast = useToast();
-  const hasPermission = usePermissionStore((state) => state.hasPermission);
 
-  const canApprove = hasPermission("purchase_invoices", "approve");
-  const canRelease = hasPermission("purchase_invoices", "release");
+  const {
+    id,
+    inv,
+    isLoading,
+    attachments,
+    canApprove,
+    canRelease,
+    hasOverQty,
+    isStaging,
+    canSplit,
+    gpAuditsByDoc,
+    allGpLinesConfirmed,
+    hasUnconfirmedGp,
+  } = usePurchaseInvoiceDetail();
 
-  const { data: inv, isLoading } = usePurchaseInvoice(id ?? "");
-  const { data: attachments } = usePurchaseInvoiceAttachments(id ?? "");
-  const submitPI = useSubmitPurchaseInvoice();
-  const approvePI = useApprovePurchaseInvoice();
-  const rejectPI = useRejectPurchaseInvoice();
-  const deletePI = useDeletePurchaseInvoice();
-  const unpostPI = useUnpostPurchaseInvoice();
-  const splitPI = useSplitPurchaseInvoice();
+  const modals = usePurchaseInvoiceDetailModals({
+    id,
+    attachmentsCount: attachments?.length ?? 0,
+    hasOverQty,
+    invoiceNumber: inv?.invoice_number ?? "",
+  });
 
-  const [showRejectModal, setShowRejectModal] = useState(false);
-  const [showSplitModal, setShowSplitModal] = useState(false);
-  const [rejectReason, setRejectReason] = useState("");
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [showUnpostModal, setShowUnpostModal] = useState(false);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [confirmOverQty, setConfirmOverQty] = useState(false);
+  // Totals for footer — use pre-computed server values to avoid frontend rounding differences
+
 
   if (isLoading)
     return <div className="p-8 text-center">Loading detail...</div>;
@@ -208,67 +69,6 @@ export default function PurchaseInvoiceDetailPage() {
       </div>
     );
 
-  const hasOverQty = inv.lines.some((l: any) => l.match_status === "OVER");
-  const isStaging = isStagingInvoiceNumber(inv.invoice_number);
-  const canSplit =
-    (inv.status === "DRAFT" || inv.status === "REJECTED") &&
-    inv.lines.length >= 2 &&
-    (inv.charges?.length ?? 0) === 0;
-
-  const gpLineAudits = inv.gp_line_audits;
-  const gpAuditsByDoc = new Map<string, typeof gpLineAudits>();
-  for (const row of gpLineAudits) {
-    const arr = gpAuditsByDoc.get(row.processing_number) ?? [];
-    arr.push(row);
-    gpAuditsByDoc.set(row.processing_number, arr);
-  }
-
-  const allGpLinesConfirmed =
-    gpLineAudits.length > 0 &&
-    gpLineAudits.every((a) => a.gp_line_status === "CONFIRMED");
-  const hasUnconfirmedGp =
-    gpLineAudits.length > 0 &&
-    gpLineAudits.some((a) => a.gp_line_status !== "CONFIRMED");
-
-  const isStatusBusy =
-    submitPI.isPending ||
-    approvePI.isPending ||
-    rejectPI.isPending;
-
-  const handleStatusAction = async (
-    action: () => Promise<any>,
-    successMsg: string,
-    onSuccess?: () => void,
-  ) => {
-    try {
-      await action();
-      toast.success(successMsg);
-      onSuccess?.();
-    } catch (err: unknown) {
-      toast.error(parseApiError(err, "Gagal memproses status"));
-    }
-  };
-
-  const handleDelete = async () => {
-    try {
-      await deletePI.mutateAsync(id!);
-      toast.success("Invoice dihapus");
-      backToList();
-    } catch (err: unknown) {
-      toast.error(parseApiError(err, "Gagal menghapus invoice"));
-    }
-  };
-
-  const handleUnpost = async () => {
-    try {
-      await unpostPI.mutateAsync(id!);
-      toast.success("Post jurnal dibatalkan — invoice kembali ke Approved");
-      setShowUnpostModal(false);
-    } catch (err: unknown) {
-      toast.error(parseApiError(err, "Gagal batalkan post"));
-    }
-  };
-
   return (
     <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
       {/* Header */}
@@ -276,7 +76,7 @@ export default function PurchaseInvoiceDetailPage() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
             <button
-              onClick={backToList}
+              onClick={() => navigate(-1)}
               className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors text-gray-500"
             >
               <ArrowLeft className="w-5 h-5" />
@@ -287,9 +87,9 @@ export default function PurchaseInvoiceDetailPage() {
                   {inv.invoice_number}
                 </h1>
                 <span
-                  className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${STATUS_CONFIG[inv.status].color}`}
+                  className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${PI_STATUS_CONFIG[inv.status].color}`}
                 >
-                  {STATUS_CONFIG[inv.status].label}
+                  {PI_STATUS_CONFIG[inv.status].label}
                 </span>
               </div>
               <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
@@ -298,12 +98,13 @@ export default function PurchaseInvoiceDetailPage() {
             </div>
           </div>
 
+          {/* Action buttons */}
           <div className="flex flex-wrap gap-2">
             {(inv.status === "DRAFT" || inv.status === "REJECTED") && (
               <>
                 {canRelease && (
                   <button
-                    onClick={() => setShowDeleteModal(true)}
+                    onClick={() => modals.setShowDeleteModal(true)}
                     className="flex items-center gap-2 px-3 py-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg text-sm font-medium transition-colors"
                     title="Hanya draft yang belum disubmit — untuk koreksi operasional"
                   >
@@ -311,9 +112,7 @@ export default function PurchaseInvoiceDetailPage() {
                   </button>
                 )}
                 <button
-                  onClick={() =>
-                    navigate(`/inventory/purchase-invoices/${id}/edit`)
-                  }
+                  onClick={() => navigate(`/inventory/purchase-invoices/${id}/edit`)}
                   className="flex items-center gap-2 px-3 py-2 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-sm font-medium transition-colors"
                 >
                   <Edit className="w-4 h-4" /> Edit
@@ -321,38 +120,23 @@ export default function PurchaseInvoiceDetailPage() {
                 {canSplit && (
                   <button
                     type="button"
-                    onClick={() => setShowSplitModal(true)}
+                    onClick={() => modals.setShowSplitModal(true)}
                     className="flex items-center gap-2 px-3 py-2 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/20 text-sm font-medium transition-colors"
                   >
                     <Scissors className="w-4 h-4" /> Pecah Invoice
                   </button>
                 )}
                 <button
-                  onClick={() => {
-                    if (isStatusBusy) return;
-                    if (!attachments || attachments.length === 0) {
-                      toast.error("Upload minimal 1 foto invoice sebelum mengajukan.");
-                      return;
-                    }
-                    if (hasOverQty && !confirmOverQty) {
-                      toast.error("Mohon centang konfirmasi selisih Qty (OVER) sebelum mengajukan.");
-                      return;
-                    }
-                    handleStatusAction(
-                      () => submitPI.mutateAsync(id!),
-                      inv.status === "REJECTED" ? "Invoice diajukan ulang" : "Invoice diajukan",
-                      backToList,
-                    );
-                  }}
-                  disabled={isStatusBusy}
+                  onClick={() => modals.handleSubmit(inv.status)}
+                  disabled={modals.isStatusBusy}
                   className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium shadow-sm transition-all"
                 >
-                  {submitPI.isPending ? (
+                  {modals.submitPI.isPending ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
                   ) : (
                     <Send className="w-4 h-4" />
                   )}
-                  {submitPI.isPending ? "Mengajukan..." : "Ajukan"}
+                  {modals.submitPI.isPending ? "Mengajukan..." : "Ajukan"}
                 </button>
               </>
             )}
@@ -360,29 +144,23 @@ export default function PurchaseInvoiceDetailPage() {
             {inv.status === "SUBMITTED" && canApprove && (
               <>
                 <button
-                  onClick={() => setShowRejectModal(true)}
-                  disabled={isStatusBusy}
+                  onClick={() => modals.setShowRejectModal(true)}
+                  disabled={modals.isStatusBusy}
                   className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium shadow-sm transition-all"
                 >
                   <XCircle className="w-4 h-4" /> Tolak
                 </button>
                 <button
-                  onClick={() => {
-                    if (isStatusBusy) return;
-                    handleStatusAction(
-                      () => approvePI.mutateAsync(id!),
-                      "Invoice disetujui",
-                    );
-                  }}
-                  disabled={isStatusBusy}
+                  onClick={modals.handleApprove}
+                  disabled={modals.isStatusBusy}
                   className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium shadow-sm transition-all"
                 >
-                  {approvePI.isPending ? (
+                  {modals.approvePI.isPending ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
                   ) : (
                     <CheckCircle2 className="w-4 h-4" />
                   )}
-                  {approvePI.isPending ? "Menyetujui..." : "Setujui"}
+                  {modals.approvePI.isPending ? "Menyetujui..." : "Setujui"}
                 </button>
               </>
             )}
@@ -395,16 +173,16 @@ export default function PurchaseInvoiceDetailPage() {
                 {canRelease && (
                   <button
                     type="button"
-                    onClick={() => setShowUnpostModal(true)}
-                    disabled={unpostPI.isPending}
+                    onClick={() => modals.setShowUnpostModal(true)}
+                    disabled={modals.unpostPI.isPending}
                     className="flex items-center gap-2 px-4 py-2 border border-amber-200 bg-amber-50 text-amber-800 dark:bg-amber-900/20 dark:border-amber-800 dark:text-amber-200 rounded-lg hover:bg-amber-100 dark:hover:bg-amber-900/30 disabled:opacity-50 text-sm font-medium transition-all"
                   >
-                    {unpostPI.isPending ? (
+                    {modals.unpostPI.isPending ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
                     ) : (
                       <Undo2 className="w-4 h-4" />
                     )}
-                    {unpostPI.isPending ? "Membatalkan..." : "Batalkan Post"}
+                    {modals.unpostPI.isPending ? "Membatalkan..." : "Batalkan Post"}
                   </button>
                 )}
               </>
@@ -418,42 +196,26 @@ export default function PurchaseInvoiceDetailPage() {
         {/* Info Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm">
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">
-              Tanggal Invoice
-            </p>
-            <p className="text-sm font-semibold text-gray-900 dark:text-white">
-              {fmtDate(inv.invoice_date)}
-            </p>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Tanggal Invoice</p>
+            <p className="text-sm font-semibold text-gray-900 dark:text-white">{fmtDate(inv.invoice_date)}</p>
           </div>
           <div className="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm">
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">
-              Jatuh Tempo
-            </p>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Jatuh Tempo</p>
             <p className="text-sm font-semibold text-gray-900 dark:text-white">
               {inv.payment_due_info?.date
-                ? fmtDate(inv.payment_due_info.date) +
-                  (!inv.payment_due_info.confirmed ? " (est.)" : "")
+                ? fmtDate(inv.payment_due_info.date) + (!inv.payment_due_info.confirmed ? " (est.)" : "")
                 : inv.payment_due_info?.text ?? "—"}
             </p>
           </div>
           <div className="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm">
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">
-              Supplier
-            </p>
-            <p className="text-sm font-semibold text-gray-900 dark:text-white">
-              {inv.supplier_name}
-            </p>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Supplier</p>
+            <p className="text-sm font-semibold text-gray-900 dark:text-white">{inv.supplier_name}</p>
           </div>
           <div className="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm">
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">
-              Penerimaan Barang (GR)
-            </p>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Penerimaan Barang (GR)</p>
             <div className="flex flex-wrap gap-1 mt-1">
               {inv.gr_links.map((gl) => (
-                <span
-                  key={gl.id}
-                  className="inline-flex items-center px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-[10px] font-medium text-gray-600 dark:text-gray-300"
-                >
+                <span key={gl.id} className="inline-flex items-center px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-[10px] font-medium text-gray-600 dark:text-gray-300">
                   {gl.goods_receipt_number}
                 </span>
               ))}
@@ -465,6 +227,7 @@ export default function PurchaseInvoiceDetailPage() {
           <PurchaseInvoicePaymentDue info={inv.payment_due_info} variant="card" />
         )}
 
+        {/* Staging banner */}
         {(inv.status === "DRAFT" || inv.status === "REJECTED") && isStaging && (
           <div className="p-4 rounded-2xl border border-indigo-100 dark:border-indigo-900/40 bg-indigo-50/60 dark:bg-indigo-900/20">
             <p className="text-sm font-semibold text-indigo-900 dark:text-indigo-200 mb-1">
@@ -489,22 +252,21 @@ export default function PurchaseInvoiceDetailPage() {
           </div>
         )}
 
+        {/* Over Qty warning */}
         {inv.status === "DRAFT" && hasOverQty && (
           <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-900/30 rounded-xl flex items-start gap-3">
             <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
             <div className="flex-1">
-              <p className="text-sm font-bold text-amber-800 dark:text-amber-400 mb-1">
-                Peringatan: Selisih Qty (OVER)
-              </p>
+              <p className="text-sm font-bold text-amber-800 dark:text-amber-400 mb-1">Peringatan: Selisih Qty (OVER)</p>
               <p className="text-sm text-amber-700 dark:text-amber-300 mb-3">
                 Terdapat item dengan jumlah tagihan melebihi jumlah yang diterima (Qty Invoice &gt; Qty GR). Mohon pastikan hal ini sudah sesuai dengan kebijakan perusahaan.
               </p>
               <label className="flex items-center gap-2 cursor-pointer group">
-                <input 
-                  type="checkbox" 
-                  checked={confirmOverQty}
-                  onChange={e => setConfirmOverQty(e.target.checked)}
-                  className="w-4 h-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500" 
+                <input
+                  type="checkbox"
+                  checked={modals.confirmOverQty}
+                  onChange={(e) => modals.setConfirmOverQty(e.target.checked)}
+                  className="w-4 h-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
                 />
                 <span className="text-sm font-medium text-amber-900 dark:text-amber-200 group-hover:text-amber-700 transition-colors">
                   Saya mengonfirmasi selisih Qty ini benar
@@ -514,252 +276,61 @@ export default function PurchaseInvoiceDetailPage() {
           </div>
         )}
 
+        {/* Rejection reason banner */}
         {inv.status === "REJECTED" && inv.rejection_reason && (
           <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900/30 rounded-xl flex items-start gap-3">
             <AlertCircle className="w-5 h-5 text-red-600 shrink-0" />
             <div>
-              <p className="text-sm font-bold text-red-800 dark:text-red-400">
-                Invoice Ditolak
-              </p>
-              <p className="text-sm text-red-700 dark:text-red-300">
-                {inv.rejection_reason}
-              </p>
+              <p className="text-sm font-bold text-red-800 dark:text-red-400">Invoice Ditolak</p>
+              <p className="text-sm text-red-700 dark:text-red-300">{inv.rejection_reason}</p>
             </div>
           </div>
         )}
 
-        {/* Lines Table */}
+        {/* Lines + charges + totals */}
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
           <div className="px-5 py-3 border-b border-gray-100 dark:border-gray-700 bg-gray-50/30 dark:bg-gray-700/30">
-            <h2 className="text-sm font-bold text-gray-900 dark:text-white">
-              Detail Barang
-            </h2>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50/50 dark:bg-gray-700/50 text-gray-500">
-                <tr>
-                  <th className="px-4 py-2 text-left text-[10px] uppercase font-bold tracking-wider">
-                    Barang
-                  </th>
-                  <th className="px-4 py-2 text-center text-[10px] uppercase font-bold tracking-wider">
-                    Qty Received
-                  </th>
-                  <th className="px-4 py-2 text-center text-[10px] uppercase font-bold tracking-wider">
-                    Qty Invoiced
-                  </th>
-                  <th className="px-4 py-2 text-right text-[10px] uppercase font-bold tracking-wider">
-                    Harga Satuan
-                  </th>
-                  <th className="px-4 py-2 text-center text-[10px] uppercase font-bold tracking-wider">
-                    PPN %
-                  </th>
-                  <th className="px-4 py-2 text-right text-[10px] uppercase font-bold tracking-wider">
-                    Subtotal
-                  </th>
-                  <th className="px-4 py-2 text-center text-[10px] uppercase font-bold tracking-wider">
-                    Match Status
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50 dark:divide-gray-700/50">
-                {inv.lines.map((l, index) => {
-                  const uom = l.uom_invoice ?? l.uom_received ?? "";
-                  const qtyReceivedDisplay = Number(
-                    l.qty_received_invoice_uom ?? l.qty_received,
-                  );
-                  const qtyInvoicedDisplay = Number(l.qty_invoiced);
-                  const unitPricePo = Number(l.unit_price_po ?? 0);
-                  return (
-                  <tr
-                    key={index}
-                    className="hover:bg-gray-50/50 dark:hover:bg-gray-700/20 transition-colors"
-                  >
-                    <td className="px-4 py-3">
-                      <p className="font-medium text-gray-900 dark:text-white">
-                        {l.product_name}
-                      </p>
-                      <p className="text-[10px] text-gray-500 font-mono">
-                        {l.product_code}
-                      </p>
-                    </td>
-                    <td className="px-4 py-3 text-center font-medium text-gray-600 dark:text-gray-400">
-                      {fmtQty(qtyReceivedDisplay)}
-                      {uom ? (
-                        <span className="text-[10px] text-gray-400 block">{uom}</span>
-                      ) : null}
-                      {l.uom_received &&
-                      uom &&
-                      l.uom_received !== uom ? (
-                        <span className="text-[10px] text-gray-400 block">
-                          ({fmtQty(l.qty_received)} {l.uom_received} di GR)
-                        </span>
-                      ) : null}
-                    </td>
-                    <td className="px-4 py-3 text-center font-bold text-gray-900 dark:text-white">
-                      {fmtQty(
-                        l.uom_received &&
-                          uom &&
-                          l.uom_received !== uom &&
-                          Math.abs(qtyInvoicedDisplay - l.qty_received) < 0.0001
-                          ? qtyReceivedDisplay
-                          : qtyInvoicedDisplay,
-                      )}
-                      {uom ? (
-                        <span className="text-[10px] text-gray-400 block">{uom}</span>
-                      ) : null}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <p className="font-medium text-gray-900 dark:text-white">
-                        {fmtCurrency(l.unit_price)}
-                        {uom ? (
-                          <span className="text-[10px] text-gray-400 font-normal">/{uom}</span>
-                        ) : null}
-                      </p>
-                      {Math.abs(l.unit_price - unitPricePo) > 0.01 && (
-                        <p className="text-[10px] text-yellow-600 font-medium">
-                          PO: {fmtCurrency(unitPricePo)}
-                          {uom ? `/${uom}` : ""}
-                        </p>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-center text-gray-600 dark:text-gray-400">
-                      {l.tax_rate}%
-                    </td>
-                    <td className="px-4 py-3 text-right font-bold text-gray-900 dark:text-white">
-                      {fmtCurrency(l.total)}
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <span
-                        className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                          l.match_status === "MATCH"
-                            ? "bg-green-100 text-green-700"
-                            : l.match_status === "OVER"
-                              ? "bg-red-100 text-red-700"
-                              : "bg-yellow-100 text-yellow-700"
-                        }`}
-                      >
-                        {l.match_status}
-                      </span>
-                    </td>
-                  </tr>
-                );
-                })}
-              </tbody>
-            </table>
+            <h2 className="text-sm font-bold text-gray-900 dark:text-white">Detail Barang</h2>
           </div>
 
-          {(inv.charges ?? []).length > 0 ? (
-            <div className="border-t border-gray-100 dark:border-gray-700 px-6 py-4">
-              <h3 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
-                Diskon &amp; biaya lain
-              </h3>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="text-gray-500 dark:text-gray-400 text-[10px] uppercase">
-                    <tr>
-                      <th className="text-left py-2 pr-4">Jenis</th>
-                      <th className="text-left py-2 pr-4">Keterangan</th>
-                      <th className="text-right py-2">Nilai (pra-PPN)</th>
-                      <th className="text-center py-2 px-2">PPN %</th>
-                      <th className="text-center py-2 px-2">DPP</th>
-                      <th className="text-right py-2">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-50 dark:divide-gray-700/50">
-                    {(inv.charges ?? []).map((c) => (
-                      <tr key={c.id}>
-                        <td className="py-2 pr-4 text-gray-900 dark:text-white">
-                          {PI_CHARGE_LABELS[c.charge_type] ?? c.charge_type}
-                        </td>
-                        <td className="py-2 pr-4 text-gray-600 dark:text-gray-400">
-                          {c.description ?? "—"}
-                        </td>
-                        <td className="py-2 text-right font-medium">
-                          {fmtCurrency(Number(c.amount))}
-                        </td>
-                        <td className="py-2 text-center text-gray-600 dark:text-gray-400">
-                          {Number(c.tax_rate)}%
-                        </td>
-                        <td className="py-2 text-center text-gray-600 dark:text-gray-400 text-xs">
-                          {c.affects_dpp ? "Ya" : "—"}
-                        </td>
-                        <td className="py-2 text-right font-bold text-gray-900 dark:text-white">
-                          {fmtCurrency(Number(c.total))}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          ) : null}
+          <InvoiceLineTable lines={inv.lines} />
 
-          <div className="bg-gray-50/30 dark:bg-gray-700/30 px-6 py-6 border-t border-gray-100 dark:border-gray-700">
-            <div className="flex flex-col items-end gap-2">
-              <div className="flex justify-between w-64 text-sm text-gray-600 dark:text-gray-400">
-                <span>Subtotal barang</span>
-                <span className="font-medium">{fmtCurrency(inv.subtotal)}</span>
-              </div>
-              {(inv.charges ?? []).length > 0 ? (
-                <div className="flex justify-between w-64 text-sm text-gray-600 dark:text-gray-400">
-                  <span>Diskon &amp; biaya (net)</span>
-                  <span
-                    className={`font-medium ${
-                      Number(inv.total_charges) < 0
-                        ? "text-green-600 dark:text-green-400"
-                        : ""
-                    }`}
-                  >
-                    {fmtCurrency(Number(inv.total_charges))}
-                  </span>
-                </div>
-              ) : null}
-              <div className="flex justify-between w-64 text-sm text-gray-600 dark:text-gray-400">
-                <span>Total PPN</span>
-                <span className="font-medium">
-                  {fmtCurrency(inv.total_tax)}
-                </span>
-              </div>
-              <div className="flex justify-between w-64 pt-3 mt-1 border-t border-gray-200 dark:border-gray-600 font-bold text-xl text-indigo-600 dark:text-indigo-400 tracking-tight">
-                <span>TOTAL AKHIR</span>
-                <span>{fmtCurrency(inv.total_amount)}</span>
-              </div>
-            </div>
-          </div>
+          <InvoiceChargeTable charges={inv.charges ?? []} />
+
+          <InvoiceTotalsFooter
+            totals={{
+              subtotal: inv.subtotal,
+              tax: inv.total_tax,
+              totalCharges: Number(inv.total_charges),
+              total: inv.total_amount,
+            }}
+            hasCharges={(inv.charges ?? []).length > 0}
+            variant="view"
+          />
         </div>
 
-        {/* Attachments Section */}
+        {/* Attachments */}
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
           <div className="px-5 py-3 border-b border-gray-100 dark:border-gray-700 bg-gray-50/30 dark:bg-gray-700/30 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Paperclip className="w-4 h-4 text-gray-500" />
-              <h2 className="text-sm font-bold text-gray-900 dark:text-white">
-                Lampiran ({attachments?.length ?? 0})
-              </h2>
+              <h2 className="text-sm font-bold text-gray-900 dark:text-white">Lampiran ({attachments?.length ?? 0})</h2>
             </div>
             <p className="text-[10px] text-gray-400 font-medium">Disalin otomatis dari GR</p>
           </div>
           {!attachments || attachments.length === 0 ? (
-            <div className="px-5 py-8 text-center text-sm text-gray-400">
-              Tidak ada lampiran
-            </div>
+            <div className="px-5 py-8 text-center text-sm text-gray-400">Tidak ada lampiran</div>
           ) : (
             <div className="divide-y divide-gray-50 dark:divide-gray-700/50">
               {attachments.map((att) => {
-                const isImage = /\.(jpg|jpeg|png|webp|gif)$/i.test(
-                  att.file_path,
-                );
+                const isImage = /\.(jpg|jpeg|png|webp|gif)$/i.test(att.file_path);
                 return (
-                  <div
-                    key={att.id}
-                    className="px-5 py-3 flex items-center justify-between hover:bg-gray-50/50 dark:hover:bg-gray-700/20 transition-colors"
-                  >
+                  <div key={att.id} className="px-5 py-3 flex items-center justify-between hover:bg-gray-50/50 dark:hover:bg-gray-700/20 transition-colors">
                     <div className="flex items-center gap-4">
                       <AttachmentThumbnail
                         filePath={att.file_path}
                         isImage={isImage}
-                        onClick={(url) => setPreviewUrl(url)}
+                        onClick={(url) => modals.setPreviewUrl(url)}
                       />
                       <div>
                         <p className="text-sm font-semibold text-gray-900 dark:text-white leading-none mb-1">
@@ -792,255 +363,34 @@ export default function PurchaseInvoiceDetailPage() {
           )}
         </div>
 
-        {/* Goods Processing (Barang Masuk) audit */}
-        {gpLineAudits.length > 0 && (
-          <div className="mt-8 pt-8 border-t border-gray-100 dark:border-gray-700">
-            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
-              <div>
-                <h3 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                  <Package className="w-4 h-4 text-orange-500" />
-                  Riwayat Barang Masuk (QC)
-                </h3>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  Prasyarat post jurnal: semua item harus status{" "}
-                  <span className="font-semibold text-green-600">Selesai</span>
-                  . Post jurnal dilakukan dari daftar Invoice, tab{" "}
-                  <span className="font-medium">Selesai & Posting</span>.
-                </p>
-              </div>
-              {inv.status === "APPROVED" && hasUnconfirmedGp && (
-                <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-xs text-amber-800 dark:text-amber-200 max-w-md">
-                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                  <span>
-                    Masih ada item yang belum dikonfirmasi di Barang Masuk. Selesaikan QC
-                    sebelum memposting jurnal dari daftar (tab Selesai & Posting).
-                  </span>
-                </div>
-              )}
-              {allGpLinesConfirmed && (
-                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">
-                  <CheckCircle2 className="w-3 h-3" /> Siap post dari daftar
-                </span>
-              )}
-            </div>
+        {/* GP audit section */}
+        <InvoiceGpAuditSection
+          gpAuditsByDoc={gpAuditsByDoc}
+          allGpLinesConfirmed={allGpLinesConfirmed}
+          hasUnconfirmedGp={hasUnconfirmedGp}
+          invoiceStatus={inv.status}
+        />
 
-            <div className="space-y-4">
-              {[...gpAuditsByDoc.entries()].map(([gpNumber, rows]) => (
-                <div
-                  key={gpNumber}
-                  className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 overflow-hidden"
-                >
-                  <div className="px-4 py-2.5 bg-orange-50/80 dark:bg-orange-900/10 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between gap-2">
-                    <span className="font-mono text-xs font-semibold text-gray-800 dark:text-gray-200">
-                      {gpNumber}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        navigate(`/inventory/goods-processing/${rows[0].goods_processing_id}`)
-                      }
-                      className="text-[10px] font-medium text-orange-600 dark:text-orange-400 hover:underline flex items-center gap-1"
-                    >
-                      Buka di Barang Masuk
-                      <ExternalLink className="w-3 h-3" />
-                    </button>
-                  </div>
-                  <div className="divide-y divide-gray-50 dark:divide-gray-700/50">
-                    {rows.map((row) => {
-                      const st =
-                        GP_LINE_STATUS_CONFIG[normalizeGpLineStatus(row.gp_line_status)] ??
-                        GP_LINE_STATUS_CONFIG.PENDING;
-                      const goodOutputs = row.outputs.filter((o) => !o.is_waste);
-                      return (
-                        <div
-                          key={row.gp_input_id}
-                          className="px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3"
-                        >
-                          <div className="flex-1 min-w-0">
-                            <div className="flex flex-wrap items-center gap-2 mb-1">
-                              <span className="text-sm font-semibold text-gray-900 dark:text-white">
-                                {row.product_name}
-                              </span>
-                              <span className="text-[10px] font-mono text-gray-400">
-                                {row.product_code}
-                              </span>
-                              {row.requires_processing ? (
-                                <span className="px-1.5 py-0.5 text-[10px] rounded bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">
-                                  Proses
-                                </span>
-                              ) : (
-                                <span className="px-1.5 py-0.5 text-[10px] rounded bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400">
-                                  Pass
-                                </span>
-                              )}
-                              <span
-                                className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${st.color}`}
-                              >
-                                {st.label}
-                              </span>
-                            </div>
-                            <p className="text-xs text-gray-600 dark:text-gray-400 font-mono">
-                              {fmtQty(row.qty_input)} {row.uom}
-                            </p>
-                            {goodOutputs.length > 0 &&
-                              goodOutputs.some((o) => o.product_name !== row.product_name) && (
-                                <p className="text-xs text-purple-600 dark:text-purple-400 mt-1">
-                                  →{" "}
-                                  {goodOutputs
-                                    .map(
-                                      (o) =>
-                                        `${o.product_name} ${fmtQty(o.qty_output)} ${o.uom}`,
-                                    )
-                                    .join(" + ")}
-                                </p>
-                              )}
-                            {row.gp_line_status === "CONFIRMED" && row.qc_confirmed_at && (
-                              <p className="text-xs text-green-600 dark:text-green-400 mt-1">
-                                ✓ Dikonfirmasi oleh {row.qc_confirmed_by_name ?? "QC"} ·{" "}
-                                {fmtDate(row.qc_confirmed_at)}
-                              </p>
-                            )}
-                            {row.gp_line_status === "REJECTED" && row.rejection_reason && (
-                              <p className="text-xs text-red-500 mt-1 italic">
-                                {row.rejection_reason}
-                              </p>
-                            )}
-                            {row.processed_at && row.gp_line_status !== "CONFIRMED" && (
-                              <p className="text-xs text-gray-400 mt-0.5">
-                                Diproses{" "}
-                                {row.processed_by_name ? `oleh ${row.processed_by_name}` : ""} ·{" "}
-                                {fmtDate(row.processed_at)}
-                              </p>
-                            )}
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              navigate(
-                                `/inventory/goods-processing/${row.goods_processing_id}?line=${row.gp_input_id}`,
-                              )
-                            }
-                            className="shrink-0 text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
-                          >
-                            Detail item
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Audit Timeline — Verifikasi Invoice */}
-        <div className="mt-8 pt-8 border-t border-gray-100 dark:border-gray-700">
-          <h3 className="text-sm font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
-            <ClipboardCheck className="w-4 h-4 text-indigo-500" /> Riwayat Verifikasi Invoice
-          </h3>
-
-          <div className="relative space-y-8 before:absolute before:inset-0 before:ml-5 before:-translate-x-px before:h-full before:w-0.5 before:bg-linear-to-b before:from-indigo-500 before:via-gray-200 dark:before:via-gray-700 before:to-transparent">
-            {/* Created */}
-            <div className="relative flex items-center justify-between md:justify-start">
-              <div className="flex items-center justify-center w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 shadow shrink-0 md:order-1 border-4 border-white dark:border-gray-800">
-                <Plus className="w-5 h-5" />
-              </div>
-              <div className="flex-1 ml-4 md:order-2">
-                <div className="flex items-center justify-between mb-1">
-                  <div className="font-bold text-gray-900 dark:text-white text-sm">Draft Dibuat</div>
-                  <time className="text-[10px] font-mono text-indigo-500 bg-indigo-50 dark:bg-indigo-900/20 px-2 py-0.5 rounded-full">{fmtDateTime(inv.created_at)}</time>
-                </div>
-                <div className="text-xs text-gray-500 dark:text-gray-400">Oleh: <span className="font-medium text-gray-700 dark:text-gray-200">{inv.creator_name || "System"}</span></div>
-              </div>
-            </div>
-
-            {/* Submitted */}
-            {inv.submitted_at && (
-              <div className="relative flex items-center justify-between md:justify-start">
-                <div className="flex items-center justify-center w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 shadow shrink-0 md:order-1 border-4 border-white dark:border-gray-800">
-                  <Send className="w-4 h-4" />
-                </div>
-                <div className="flex-1 ml-4 md:order-2">
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="font-bold text-gray-900 dark:text-white text-sm">Diajukan untuk Verifikasi</div>
-                    <time className="text-[10px] font-mono text-amber-500 bg-amber-50 dark:bg-amber-900/20 px-2 py-0.5 rounded-full">{fmtDateTime(inv.submitted_at)}</time>
-                  </div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400">Oleh: <span className="font-medium text-gray-700 dark:text-gray-200">{inv.submitter_name || "Staff Finance"}</span></div>
-                </div>
-              </div>
-            )}
-
-            {/* Rejected */}
-            {inv.status === 'REJECTED' && inv.rejected_at && (
-              <div className="relative flex items-center justify-between md:justify-start">
-                <div className="flex items-center justify-center w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 shadow shrink-0 md:order-1 border-4 border-white dark:border-gray-800">
-                  <XCircle className="w-5 h-5" />
-                </div>
-                <div className="flex-1 ml-4 md:order-2">
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="font-bold text-red-600 dark:text-red-400 text-sm">Ditolak</div>
-                    <time className="text-[10px] font-mono text-red-500 bg-red-50 dark:bg-red-900/20 px-2 py-0.5 rounded-full">{fmtDateTime(inv.rejected_at)}</time>
-                  </div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">Oleh: <span className="font-medium text-gray-700 dark:text-gray-200">{inv.rejector_name || "Approver"}</span></div>
-                  <div className="p-3 bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/20 rounded-lg text-xs text-red-700 dark:text-red-300 italic">
-                    {inv.rejection_reason}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Approved */}
-            {inv.approved_at && (
-              <div className="relative flex items-center justify-between md:justify-start">
-                <div className="flex items-center justify-center w-10 h-10 rounded-full bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 shadow shrink-0 md:order-1 border-4 border-white dark:border-gray-800">
-                  <CheckCircle2 className="w-5 h-5" />
-                </div>
-                <div className="flex-1 ml-4 md:order-2">
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="font-bold text-gray-900 dark:text-white text-sm">Disetujui</div>
-                    <time className="text-[10px] font-mono text-green-500 bg-green-50 dark:bg-green-900/20 px-2 py-0.5 rounded-full">{fmtDateTime(inv.approved_at)}</time>
-                  </div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400">Oleh: <span className="font-medium text-gray-700 dark:text-gray-200">{inv.approver_name || "Manager"}</span></div>
-                </div>
-              </div>
-            )}
-
-            {/* Posted */}
-            {inv.posted_at && (
-              <div className="relative flex items-center justify-between md:justify-start">
-                <div className="flex items-center justify-center w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 shadow shrink-0 md:order-1 border-4 border-white dark:border-gray-800">
-                  <FileText className="w-5 h-5" />
-                </div>
-                <div className="flex-1 ml-4 md:order-2">
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="font-bold text-gray-900 dark:text-white text-sm">Berhasil Di-post ke Jurnal</div>
-                    <time className="text-[10px] font-mono text-blue-500 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded-full">{fmtDateTime(inv.posted_at)}</time>
-                  </div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400">Oleh: <span className="font-medium text-gray-700 dark:text-gray-200">{inv.poster_name || "Accounting"}</span></div>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
+        {/* Audit timeline */}
+        <InvoiceAuditTimeline inv={inv} />
       </div>
 
       {/* Modals */}
       <ConfirmModal
-        isOpen={showDeleteModal}
-        onClose={() => setShowDeleteModal(false)}
-        onConfirm={handleDelete}
+        isOpen={modals.showDeleteModal}
+        onClose={() => modals.setShowDeleteModal(false)}
+        onConfirm={modals.handleDelete}
         title="Hapus Invoice"
         message="Yakin ingin menghapus invoice ini? Tindakan ini tidak dapat dibatalkan."
         confirmText="Hapus"
         variant="danger"
-        isLoading={deletePI.isPending}
+        isLoading={modals.deletePI.isPending}
       />
 
       <ConfirmModal
-        isOpen={showUnpostModal}
-        onClose={() => setShowUnpostModal(false)}
-        onConfirm={handleUnpost}
+        isOpen={modals.showUnpostModal}
+        onClose={() => modals.setShowUnpostModal(false)}
+        onConfirm={modals.handleUnpost}
         title="Batalkan Post Jurnal"
         message={
           <div className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
@@ -1058,72 +408,40 @@ export default function PurchaseInvoiceDetailPage() {
         }
         confirmText="Batalkan Post"
         variant="danger"
-        isLoading={unpostPI.isPending}
+        isLoading={modals.unpostPI.isPending}
       />
 
-      <ConfirmModal
-        isOpen={showRejectModal}
-        onClose={() => setShowRejectModal(false)}
-        onConfirm={() =>
-          handleStatusAction(
-            () => rejectPI.mutateAsync({ id: id!, reason: rejectReason }),
-            "Invoice ditolak",
-          ).then(() => setShowRejectModal(false))
-        }
-        title="Tolak Invoice"
-        message={
-          <div className="space-y-3 pt-2">
-            <p className="text-sm text-gray-500">
-              Berikan alasan penolakan agar tim finance dapat merevisi invoice
-              ini.
-            </p>
-            <textarea
-              value={rejectReason}
-              onChange={(e) => setRejectReason(e.target.value)}
-              placeholder="Alasan penolakan..."
-              className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg text-sm bg-white dark:bg-gray-800 outline-none focus:ring-2 focus:ring-red-500"
-              rows={3}
-            />
-          </div>
-        }
-        confirmText="Tolak Invoice"
-        variant="danger"
-        isLoading={rejectPI.isPending}
+      <PurchaseInvoiceRejectModal
+        isOpen={modals.showRejectModal}
+        onClose={() => modals.setShowRejectModal(false)}
+        onConfirm={modals.handleReject}
+        rejectReason={modals.rejectReason}
+        onRejectReasonChange={modals.setRejectReason}
+        isLoading={modals.rejectPI.isPending}
       />
 
       <PurchaseInvoiceSplitModal
-        open={showSplitModal}
+        open={modals.showSplitModal}
         invoice={inv}
-        onClose={() => setShowSplitModal(false)}
-        isSubmitting={splitPI.isPending}
-        onSubmit={async (splits) => {
-          try {
-            const result = await splitPI.mutateAsync({ id: id!, splits })
-            setShowSplitModal(false)
-            toast.success(
-              `${result.created_invoices.length} invoice dibuat: ${result.created_invoices.map((i) => i.invoice_number).join(", ")}`,
-            )
-            navigate(`/inventory/purchase-invoices/${result.created_invoices[0].id}`)
-          } catch (err: unknown) {
-            toast.error(parseApiError(err, "Gagal memecah invoice"))
-          }
-        }}
+        onClose={() => modals.setShowSplitModal(false)}
+        isSubmitting={modals.splitPI.isPending}
+        onSubmit={modals.handleSplit}
       />
 
-      {/* Image Preview Modal */}
-      {previewUrl && (
+      {/* Image preview */}
+      {modals.previewUrl && (
         <div
           className="fixed inset-0 z-100 flex items-center justify-center bg-black/90 p-4 animate-in fade-in duration-200"
-          onClick={() => setPreviewUrl(null)}
+          onClick={() => modals.setPreviewUrl(null)}
         >
           <button
             className="absolute top-6 right-6 text-white/70 hover:text-white p-2 transition-colors"
-            onClick={() => setPreviewUrl(null)}
+            onClick={() => modals.setPreviewUrl(null)}
           >
             <XCircle className="w-8 h-8" />
           </button>
           <img
-            src={previewUrl}
+            src={modals.previewUrl}
             alt="Full Preview"
             className="max-w-full max-h-full object-contain rounded-lg shadow-2xl animate-in zoom-in-95 duration-300"
             onClick={(e) => e.stopPropagation()}

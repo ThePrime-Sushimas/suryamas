@@ -1,11 +1,5 @@
 import type { PiPaymentDueInfo } from "../api/purchaseInvoices.api";
-
-const fmtDate = (d: string) =>
-  new Date(d).toLocaleDateString("id-ID", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
+import { fmtDate } from "../utils/purchaseInvoice.formatters";
 
 type Variant = "card" | "inline" | "table";
 
@@ -16,7 +10,10 @@ export function PurchaseInvoicePaymentDue({
   info: PiPaymentDueInfo | null | undefined;
   variant?: Variant;
 }) {
-  if (!info) return variant === "table" ? <span className="text-gray-400">—</span> : null;
+  if (!info)
+    return variant === "table" ? (
+      <span className="text-gray-400">—</span>
+    ) : null;
 
   const dateLabel =
     info.date != null
@@ -70,7 +67,9 @@ export function PurchaseInvoicePaymentDue({
           {info.base_source === "gr" && " · dari tanggal terima barang (GR)"}
         </p>
       )}
-      <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">{info.hint}</p>
+      <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">
+        {info.hint}
+      </p>
     </div>
   );
 }
