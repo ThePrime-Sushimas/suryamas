@@ -1,4 +1,5 @@
 import { CheckCircle2 } from "lucide-react";
+import { FormSkeleton } from "@/components/ui/Skeleton";
 
 interface GrItem {
   id: string;
@@ -45,11 +46,7 @@ export function InvoiceGrSelector({
           Pilih supplier dan cabang terlebih dahulu
         </div>
       ) : isFetchingGrs ? (
-        <div className="space-y-2">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="h-10 bg-gray-100 dark:bg-gray-700 rounded animate-pulse" />
-          ))}
-        </div>
+        <FormSkeleton />
       ) : availableGrs?.length === 0 && !isEdit ? (
         <div className="text-center py-8 text-gray-400 text-sm">
           Tidak ada GR tersedia untuk supplier &amp; cabang ini

@@ -1,5 +1,6 @@
 import { CheckSquare, Square, ClipboardCheck, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { CardSkeleton } from "@/components/ui/Skeleton";
 import { PurchaseInvoicePaymentDue } from "./PurchaseInvoicePaymentDue";
 import { InvoiceStatusBadge } from "./InvoiceStatusBadge";
 import { fmtDate, fmtCurrency } from "../utils/purchaseInvoice.formatters";
@@ -46,10 +47,7 @@ export function InvoiceCardList({
       {isLoading ? (
         <div className="p-4 space-y-3">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div
-              key={i}
-              className="h-24 bg-gray-100 dark:bg-gray-700/50 rounded-xl animate-pulse"
-            />
+            <CardSkeleton key={i} />
           ))}
         </div>
       ) : invoices.length === 0 ? (

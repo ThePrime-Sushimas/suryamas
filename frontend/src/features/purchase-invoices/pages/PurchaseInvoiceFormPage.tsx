@@ -58,7 +58,7 @@ export default function PurchaseInvoiceFormPage() {
     return <div className="p-8 text-center">Loading...</div>;
 
   return (
-    <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
+    <div className="flex h-full min-h-0 flex-col bg-gray-50 dark:bg-gray-900">
       {/* Page header */}
       <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 lg:px-6 py-4 sticky top-0 z-10">
         <div className="flex items-center justify-between gap-3">

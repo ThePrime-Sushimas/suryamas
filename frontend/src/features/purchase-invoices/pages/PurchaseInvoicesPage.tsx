@@ -6,7 +6,7 @@ import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { Pagination } from "@/components/ui/Pagination";
 import { useSuppliers } from "@/features/suppliers/api/suppliers.api";
 import { useBranches } from "@/features/branches/api/branches.api";
-import { PI_LIST_TABS, PURCHASE_INVOICES_LIST_PATH } from "../constants";
+import { PI_LIST_TABS, PI_TAB_COLOR_CLASSES, PURCHASE_INVOICES_LIST_PATH } from "../constants";
 import { InvoiceFilters } from "../components/InvoiceFilters";
 import { InvoiceTableDesktop } from "../components/InvoiceTableDesktop";
 import { InvoiceCardList } from "../components/InvoiceCardList";
@@ -66,7 +66,7 @@ export default function PurchaseInvoicesPage() {
   const branches = branchesData?.data ?? [];
 
   return (
-    <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
+    <div className="flex h-full min-h-0 flex-col bg-gray-50 dark:bg-gray-900">
       {/* Header */}
       <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 lg:px-6 py-4 transition-colors">
         <div className="flex items-center justify-between">
@@ -141,6 +141,8 @@ export default function PurchaseInvoicesPage() {
                 : tab.id === "approval"
                   ? counts?.approval_count
                   : counts?.final_count;
+            const isActive = filters.tab === tab.id;
+            const colorClasses = PI_TAB_COLOR_CLASSES[tab.color];
             return (
               <button
                 key={tab.id}
@@ -149,8 +151,8 @@ export default function PurchaseInvoicesPage() {
                   setFilters({ tab: tab.id });
                 }}
                 className={`py-4 text-sm font-bold border-b-2 transition-all whitespace-nowrap flex items-center gap-2 ${
-                  filters.tab === tab.id
-                    ? `border-${tab.color}-600 text-${tab.color}-600 dark:border-${tab.color}-400 dark:text-${tab.color}-400`
+                  isActive
+                    ? colorClasses.tabActive
                     : "border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
                 }`}
               >
@@ -158,8 +160,8 @@ export default function PurchaseInvoicesPage() {
                 {count !== undefined && count > 0 && (
                   <span
                     className={`px-2 py-0.5 rounded-full text-[10px] ${
-                      filters.tab === tab.id
-                        ? `bg-${tab.color}-100 text-${tab.color}-700 dark:bg-${tab.color}-900/30`
+                      isActive
+                        ? colorClasses.badgeActive
                         : "bg-gray-100 text-gray-600 dark:bg-gray-700"
                     }`}
                   >

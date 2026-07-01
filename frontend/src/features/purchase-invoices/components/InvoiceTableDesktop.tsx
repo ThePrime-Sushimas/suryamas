@@ -1,5 +1,6 @@
 import { ClipboardCheck, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { TableSkeleton } from "@/components/ui/Skeleton";
 import { PurchaseInvoicePaymentDue } from "./PurchaseInvoicePaymentDue";
 import { InvoiceStatusBadge } from "./InvoiceStatusBadge";
 import { fmtDate, fmtCurrency } from "../utils/purchaseInvoice.formatters";
@@ -43,6 +44,14 @@ export function InvoiceTableDesktop({
 }: InvoiceTableDesktopProps) {
   const colSpan = tab === "verify" ? 9 : 8;
 
+  if (isLoading) {
+    return (
+      <div className="hidden lg:block overflow-x-auto p-2">
+        <TableSkeleton rows={5} columns={colSpan} />
+      </div>
+    );
+  }
+
   return (
     <div className="hidden lg:block overflow-x-auto">
       <table className="w-full text-sm">
@@ -80,15 +89,7 @@ export function InvoiceTableDesktop({
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
-          {isLoading ? (
-            Array.from({ length: 5 }).map((_, i) => (
-              <tr key={i}>
-                <td colSpan={colSpan} className="px-4 py-4">
-                  <div className="h-4 bg-gray-100 dark:bg-gray-700/50 rounded animate-pulse" />
-                </td>
-              </tr>
-            ))
-          ) : invoices.length === 0 ? (
+          {invoices.length === 0 ? (
             <tr>
               <td
                 colSpan={colSpan}
