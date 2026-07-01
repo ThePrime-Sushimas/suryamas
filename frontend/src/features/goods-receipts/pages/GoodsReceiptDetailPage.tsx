@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useListNavigation } from "@/lib/urlFilters";
 import { GOODS_RECEIPTS_LIST_PATH } from "../constants";
@@ -12,7 +12,6 @@ import {
   Paperclip,
   Upload,
   Trash2,
-  FileText,
   XCircle,
   Info,
   Calendar,
