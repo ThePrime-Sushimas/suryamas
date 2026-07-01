@@ -61,7 +61,7 @@ export default function PurchaseInvoicesPage() {
 
   // Reference data for filters
   const { data: suppliersData } = useSuppliers();
-  const { data: branchesData } = useBranches({ limit: 100 });
+  const { data: branchesData } = useBranches({ limit: 100, filter: { status: 'active' } });
 
   const suppliers = suppliersData?.data ?? [];
   const branches = branchesData?.data ?? [];

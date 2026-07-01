@@ -80,10 +80,10 @@ export function InvoiceCardList({
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <div className="min-w-0">
                     <p className="font-bold text-gray-900 dark:text-white truncate">
-                      {inv.invoice_number}
+                      {inv.supplier_name}
                     </p>
                     <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                      {inv.supplier_name}
+                      {inv.branch_code}
                     </p>
                   </div>
                   <div className="shrink-0">
@@ -96,7 +96,7 @@ export function InvoiceCardList({
                 <div className="flex items-center gap-2">
                   <span>{fmtDate(inv.invoice_date)}</span>
                   <span>·</span>
-                  <span>{inv.branch_code}</span>
+                  <span>{inv.invoice_number}</span>
                 </div>
                 <div className="font-bold text-gray-900 dark:text-white">
                   {fmtCurrency(Number(inv.total_amount))}

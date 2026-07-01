@@ -43,12 +43,14 @@ export class PurchaseInvoiceNoJournalError extends BusinessRuleError {
   }
 }
 
-/** TODO(purchase-payments): block unpost when linked payments exist — module belum ada. */
-// export class PurchaseInvoiceHasPaymentsError extends BusinessRuleError {
-//   constructor() {
-//     super('Cannot unpost: payment already recorded against this invoice')
-//   }
-// }
+export class PurchaseInvoiceHasPaymentsError extends BusinessRuleError {
+  constructor(paymentNumber: string) {
+    super(
+      `Tidak dapat membatalkan post: invoice ini sudah terhubung dengan pembayaran "${paymentNumber}". ` +
+      'Batalkan atau hapus data pembayaran terlebih dahulu sebelum membatalkan post jurnal.',
+    )
+  }
+}
 
 export class PurchaseInvoiceGpNotConfirmedError extends BusinessRuleError {
   constructor(gpNumber: string) {

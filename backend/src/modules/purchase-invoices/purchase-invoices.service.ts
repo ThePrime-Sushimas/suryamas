@@ -6,6 +6,7 @@ import {
 } from './purchase-invoices.repository'
 import { AuditService } from '../monitoring/monitoring.service'
 import { apPaymentsService } from '../ap-payments/ap-payments.service'
+import { apPaymentsRepository } from '../ap-payments/ap-payments.repository'
 import {
   PurchaseInvoiceCannotEditPostedError,
   PurchaseInvoiceChargesInvalidError,
@@ -14,6 +15,7 @@ import {
   PurchaseInvoiceGrNotEligibleError,
   PurchaseInvoiceGpNotConfirmedError,
   PurchaseInvoiceHasChargesError,
+  PurchaseInvoiceHasPaymentsError,
   PurchaseInvoiceInvalidStatusError,
   PurchaseInvoiceJournalAlreadyExistsError,
   PurchaseInvoiceMixedAssetLinesError,
@@ -1299,7 +1301,11 @@ export class PurchaseInvoicesService {
 
     const journalId = detail.journal_id
 
-    // TODO(purchase-payments): if (await hasLinkedPayments(client, id)) throw PurchaseInvoiceHasPaymentsError()
+    // Guard: block unpost when an active (non-rejected, non-deleted) payment exists for this invoice.
+    const activePayment = await apPaymentsRepository.findActivePaymentForInvoice(id)
+    if (activePayment) {
+      throw new PurchaseInvoiceHasPaymentsError(activePayment.payment_number)
+    }
 
     const recipeProductIds = new Set<string>()
 

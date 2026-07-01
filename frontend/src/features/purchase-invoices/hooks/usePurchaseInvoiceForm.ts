@@ -46,7 +46,7 @@ export function usePurchaseInvoiceForm() {
     isEdit ? (id ?? "") : "",
   );
   const { data: suppliersData } = useSuppliers({ limit: 100 });
-  const { data: branchesData } = useBranches({ limit: 100 });
+  const { data: branchesData } = useBranches({ limit: 100, filter: { status: 'active' } });
   const { data: supplierBankAccounts = [] } = useQuery({
     queryKey: ["bank-accounts", "supplier", supplierId],
     queryFn: () => bankAccountsApi.getByOwner("supplier", supplierId),
