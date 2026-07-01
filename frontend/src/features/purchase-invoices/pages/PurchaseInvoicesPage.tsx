@@ -23,6 +23,7 @@ export default function PurchaseInvoicesPage() {
     filters,
     setFilters,
     setPage,
+    setLimit,
     searchInput,
     setSearchInput,
     invoices,
@@ -223,7 +224,7 @@ export default function PurchaseInvoicesPage() {
             <Pagination
               pagination={pagination}
               onPageChange={setPage}
-              onLimitChange={() => {}}
+              onLimitChange={setLimit}
               currentLength={invoices.length}
               loading={isLoading}
             />

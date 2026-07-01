@@ -21,6 +21,7 @@ export function usePurchaseInvoiceList() {
     apiQuery,
     setFilters,
     setPage,
+    setLimit,
     searchInput,
     setSearchInput,
   } = usePurchaseInvoiceFilters();
@@ -51,6 +52,7 @@ export function usePurchaseInvoiceList() {
     apiQuery,
     setFilters,
     setPage,
+    setLimit,
     searchInput,
     setSearchInput,
     invoices,

@@ -58,5 +58,12 @@ export const pettyCashFilterConfig: UrlFilterUtils<PettyCashFilters> & { searchF
   },
 
   merge: (current, patch) =>
-    mergeWithPageReset(current, patch, PC_FILTER_DEFAULTS, ['status', 'branch_id', 'date_from', 'date_to', 'search']),
+    mergeWithPageReset(current, patch, PC_FILTER_DEFAULTS, [
+      'status',
+      'branch_id',
+      'date_from',
+      'date_to',
+      'search',
+      'limit',
+    ]),
 }

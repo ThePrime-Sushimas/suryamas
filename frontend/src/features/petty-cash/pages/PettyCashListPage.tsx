@@ -43,6 +43,7 @@ export default function PettyCashListPage() {
     setFilters,
     resetFilters,
     setPage,
+    setLimit,
   } = useUrlFilters(pettyCashFilterConfig);
   const { openDetail } = useListNavigation("/finance/petty-cash");
 
@@ -226,10 +227,13 @@ export default function PettyCashListPage() {
         </div>
       )}
 
-      {pagination && pagination.totalPages > 1 && (
+      {pagination && pagination.total > 0 && (
         <Pagination
-          pagination={{ ...pagination, page: filters.page }}
+          pagination={pagination}
           onPageChange={setPage}
+          onLimitChange={setLimit}
+          currentLength={rows.length}
+          loading={isLoading}
         />
       )}
 
