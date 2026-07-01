@@ -1,4 +1,5 @@
 import { AlertCircle } from "lucide-react";
+import { Input } from "@/components/ui/Input";
 import { fmtCurrency } from "../utils/purchaseInvoice.formatters";
 import type { PILine } from "../types/purchaseInvoice.types";
 
@@ -55,35 +56,32 @@ export function InvoiceLineTableEditable({
                     ) : null}
                   </td>
                   <td className="px-4 py-3 text-center">
-                    <input
+                    <Input
                       type="number"
                       value={l.qty_invoiced}
                       onChange={(e) => onLineChange(index, { qty_invoiced: Number(e.target.value) })}
-                      className={`w-20 px-2 py-1 border rounded text-center text-sm outline-none focus:ring-2 ${
-                        isOver
-                          ? "border-red-300 focus:ring-red-500 text-red-600"
-                          : "border-gray-200 dark:border-gray-600 focus:ring-indigo-500"
-                      }`}
+                      error={isOver}
+                      className={`w-20 py-1 px-2 text-center text-xs ${isOver ? "text-red-600" : ""}`}
                     />
                     {uomInvoice ? <span className="text-[10px] text-gray-400 block">{uomInvoice}</span> : null}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <input
+                    <Input
                       type="number"
                       value={l.unit_price}
                       onChange={(e) => onLineChange(index, { unit_price: Number(e.target.value) })}
-                      className="w-28 px-2 py-1 border border-gray-200 dark:border-gray-600 rounded text-right text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                      className="w-28 py-1 px-2 text-right text-xs"
                     />
                     <div className="text-[10px] text-gray-400 mt-0.5">
                       PO: {fmtCurrency(l.unit_price_po)}{uomInvoice ? `/${uomInvoice}` : ""}
                     </div>
                   </td>
                   <td className="px-4 py-3 text-center">
-                    <input
+                    <Input
                       type="number"
                       value={l.tax_rate}
                       onChange={(e) => onLineChange(index, { tax_rate: Number(e.target.value) })}
-                      className="w-16 px-2 py-1 border border-gray-200 dark:border-gray-600 rounded text-center text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                      className="w-16 py-1 px-2 text-center text-xs"
                     />
                   </td>
                   <td className="px-4 py-3 text-right font-bold text-gray-900 dark:text-white">

@@ -1,5 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { Package, AlertCircle, CheckCircle2, ExternalLink } from "lucide-react";
+import { Button } from "@/components/ui/Button";
 import { fmtDate, fmtQty } from "../utils/purchaseInvoice.formatters";
 import {
   GP_LINE_STATUS_CONFIG,
@@ -67,18 +68,19 @@ export function InvoiceGpAuditSection({
               <span className="font-mono text-xs font-semibold text-gray-800 dark:text-gray-200">
                 {gpNumber}
               </span>
-              <button
-                type="button"
+              <Button
+                variant="ghost"
+                size="sm"
+                rightIcon={<ExternalLink className="w-3 h-3" />}
                 onClick={() =>
                   navigate(
                     `/inventory/goods-processing/${rows[0].goods_processing_id}`,
                   )
                 }
-                className="text-[10px] font-medium text-orange-600 dark:text-orange-400 hover:underline flex items-center gap-1"
+                className="text-[10px] h-auto py-0 px-0 text-orange-600 dark:text-orange-400"
               >
                 Buka di Barang Masuk
-                <ExternalLink className="w-3 h-3" />
-              </button>
+              </Button>
             </div>
 
             <div className="divide-y divide-gray-50 dark:divide-gray-700/50">
@@ -164,17 +166,18 @@ export function InvoiceGpAuditSection({
                         )}
                     </div>
 
-                    <button
-                      type="button"
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={() =>
                         navigate(
                           `/inventory/goods-processing/${row.goods_processing_id}?line=${row.gp_input_id}`,
                         )
                       }
-                      className="shrink-0 text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
+                      className="shrink-0 text-xs text-indigo-600 dark:text-indigo-400 h-auto py-0"
                     >
                       Detail item
-                    </button>
+                    </Button>
                   </div>
                 );
               })}

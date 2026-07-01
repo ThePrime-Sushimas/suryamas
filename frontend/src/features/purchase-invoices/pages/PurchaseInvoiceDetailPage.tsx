@@ -10,12 +10,12 @@ import {
   Paperclip,
   ExternalLink,
   Undo2,
-  Loader2,
   Scissors,
 } from "lucide-react";
 import api from "@/lib/axios";
 import { PurchaseInvoicePaymentDue } from "../components/PurchaseInvoicePaymentDue";
 import { parseApiError } from "@/lib/errorParser";
+import { Button } from "@/components/ui/Button";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { PurchaseInvoiceSplitModal } from "../components/PurchaseInvoiceSplitModal";
 import { AttachmentThumbnail } from "../components/AttachmentThumbnail";
@@ -75,12 +75,15 @@ export default function PurchaseInvoiceDetailPage() {
       <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 lg:px-6 py-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
-            <button
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => navigate(-1)}
-              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors text-gray-500"
+              aria-label="Kembali"
+              className="p-2"
             >
               <ArrowLeft className="w-5 h-5" />
-            </button>
+            </Button>
             <div className="min-w-0">
               <div className="flex items-center gap-2 mb-1">
                 <h1 className="text-lg lg:text-xl font-bold text-gray-900 dark:text-white truncate">
@@ -103,65 +106,72 @@ export default function PurchaseInvoiceDetailPage() {
             {(inv.status === "DRAFT" || inv.status === "REJECTED") && (
               <>
                 {canRelease && (
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    leftIcon={<Trash2 className="w-4 h-4" />}
                     onClick={() => modals.setShowDeleteModal(true)}
-                    className="flex items-center gap-2 px-3 py-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg text-sm font-medium transition-colors"
+                    className="text-red-600"
                     title="Hanya draft yang belum disubmit — untuk koreksi operasional"
                   >
-                    <Trash2 className="w-4 h-4" /> Hapus
-                  </button>
+                    Hapus
+                  </Button>
                 )}
-                <button
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  leftIcon={<Edit className="w-4 h-4" />}
                   onClick={() => navigate(`/inventory/purchase-invoices/${id}/edit`)}
-                  className="flex items-center gap-2 px-3 py-2 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-sm font-medium transition-colors"
                 >
-                  <Edit className="w-4 h-4" /> Edit
-                </button>
+                  Edit
+                </Button>
                 {canSplit && (
-                  <button
-                    type="button"
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    leftIcon={<Scissors className="w-4 h-4" />}
                     onClick={() => modals.setShowSplitModal(true)}
-                    className="flex items-center gap-2 px-3 py-2 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/20 text-sm font-medium transition-colors"
+                    className="border-indigo-200 text-indigo-700 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-300 dark:hover:bg-indigo-900/20"
                   >
-                    <Scissors className="w-4 h-4" /> Pecah Invoice
-                  </button>
+                    Pecah Invoice
+                  </Button>
                 )}
-                <button
-                  onClick={() => modals.handleSubmit(inv.status)}
+                <Button
+                  variant="primary"
+                  size="sm"
+                  leftIcon={<Send className="w-4 h-4" />}
+                  loading={modals.submitPI.isPending}
                   disabled={modals.isStatusBusy}
-                  className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium shadow-sm transition-all"
+                  onClick={() => modals.handleSubmit(inv.status)}
                 >
-                  {modals.submitPI.isPending ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Send className="w-4 h-4" />
-                  )}
                   {modals.submitPI.isPending ? "Mengajukan..." : "Ajukan"}
-                </button>
+                </Button>
               </>
             )}
 
             {inv.status === "SUBMITTED" && canApprove && (
               <>
-                <button
+                <Button
+                  variant="danger"
+                  size="sm"
+                  leftIcon={<XCircle className="w-4 h-4" />}
+                  loading={modals.isStatusBusy}
+                  disabled={modals.isStatusBusy}
                   onClick={() => modals.setShowRejectModal(true)}
-                  disabled={modals.isStatusBusy}
-                  className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium shadow-sm transition-all"
                 >
-                  <XCircle className="w-4 h-4" /> Tolak
-                </button>
-                <button
+                  Tolak
+                </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  leftIcon={<CheckCircle2 className="w-4 h-4" />}
+                  loading={modals.approvePI.isPending}
+                  disabled={modals.isStatusBusy}
                   onClick={modals.handleApprove}
-                  disabled={modals.isStatusBusy}
-                  className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium shadow-sm transition-all"
+                  className="bg-green-600 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700"
                 >
-                  {modals.approvePI.isPending ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <CheckCircle2 className="w-4 h-4" />
-                  )}
                   {modals.approvePI.isPending ? "Menyetujui..." : "Setujui"}
-                </button>
+                </Button>
               </>
             )}
 
@@ -171,19 +181,16 @@ export default function PurchaseInvoiceDetailPage() {
                   <CheckCircle2 className="w-4 h-4" /> Sudah Di-post
                 </span>
                 {canRelease && (
-                  <button
-                    type="button"
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    leftIcon={<Undo2 className="w-4 h-4" />}
+                    loading={modals.unpostPI.isPending}
                     onClick={() => modals.setShowUnpostModal(true)}
-                    disabled={modals.unpostPI.isPending}
-                    className="flex items-center gap-2 px-4 py-2 border border-amber-200 bg-amber-50 text-amber-800 dark:bg-amber-900/20 dark:border-amber-800 dark:text-amber-200 rounded-lg hover:bg-amber-100 dark:hover:bg-amber-900/30 disabled:opacity-50 text-sm font-medium transition-all"
+                    className="border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100 dark:bg-amber-900/20 dark:border-amber-800 dark:text-amber-200"
                   >
-                    {modals.unpostPI.isPending ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Undo2 className="w-4 h-4" />
-                    )}
                     {modals.unpostPI.isPending ? "Membatalkan..." : "Batalkan Post"}
-                  </button>
+                  </Button>
                 )}
               </>
             )}
@@ -341,7 +348,10 @@ export default function PurchaseInvoiceDetailPage() {
                         </p>
                       </div>
                     </div>
-                    <button
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      aria-label="Buka file"
                       onClick={async () => {
                         try {
                           const { data } = await api.get("/storage/signed-url", {
@@ -352,10 +362,10 @@ export default function PurchaseInvoiceDetailPage() {
                           toast.error(parseApiError(err, "Gagal membuka file"));
                         }
                       }}
-                      className="text-blue-600 hover:text-blue-800"
+                      className="p-1"
                     >
                       <ExternalLink className="w-4 h-4" />
-                    </button>
+                    </Button>
                   </div>
                 );
               })}

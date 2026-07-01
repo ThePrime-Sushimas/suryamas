@@ -1,5 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Save } from "lucide-react";
+import { Button } from "@/components/ui/Button";
 import { InvoiceFormHeader } from "../components/InvoiceFormHeader";
 import { InvoiceGrSelector } from "../components/InvoiceGrSelector";
 import { InvoiceLineTableEditable } from "../components/InvoiceLineTableEditable";
@@ -62,24 +63,28 @@ export default function PurchaseInvoiceFormPage() {
       <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 lg:px-6 py-4 sticky top-0 z-10">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <button
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => navigate("/inventory/purchase-invoices")}
-              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors text-gray-500"
+              aria-label="Kembali"
+              className="p-2"
             >
               <ArrowLeft className="w-5 h-5" />
-            </button>
+            </Button>
             <h1 className="text-lg lg:text-xl font-bold text-gray-900 dark:text-white">
               {isEdit ? "Edit Invoice" : "Buat Invoice Baru"}
             </h1>
           </div>
-          <button
+          <Button
+            variant="primary"
+            leftIcon={<Save className="w-4 h-4" />}
+            loading={createPI.isPending || updatePI.isPending}
+            disabled={lines.length === 0 || createPI.isPending || updatePI.isPending}
             onClick={handleSubmit}
-            disabled={createPI.isPending || updatePI.isPending}
-            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 font-medium transition-all shadow-sm"
           >
-            <Save className="w-4 h-4" />
             <span>{isEdit ? "Simpan Perubahan" : "Buat Invoice"}</span>
-          </button>
+          </Button>
         </div>
       </div>
 

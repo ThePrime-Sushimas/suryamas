@@ -1,4 +1,7 @@
 import { Plus, Trash2 } from "lucide-react";
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
+import { Select } from "@/components/ui/Select";
 import { fmtCurrency } from "../utils/purchaseInvoice.formatters";
 import { PI_CHARGE_LABELS } from "../types/purchaseInvoice.status";
 import {
@@ -28,14 +31,15 @@ export function InvoiceChargeTableEditable({
     <>
       <div className="px-5 py-3 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between bg-gray-50/30 dark:bg-gray-800/40">
         <h2 className="text-sm font-bold text-gray-900 dark:text-white">Diskon &amp; biaya lain</h2>
-        <button
-          type="button"
+        <Button
+          variant="ghost"
+          size="sm"
+          leftIcon={<Plus className="w-3.5 h-3.5" />}
           onClick={onAddCharge}
-          className="flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:text-indigo-700"
+          className="text-xs font-semibold text-indigo-600 hover:text-indigo-700"
         >
-          <Plus className="w-3.5 h-3.5" />
           Tambah baris
-        </button>
+        </Button>
       </div>
 
       <div className="overflow-x-auto px-2 pb-2">
@@ -63,7 +67,7 @@ export function InvoiceChargeTableEditable({
                 return (
                   <tr key={index}>
                     <td className="px-3 py-2">
-                      <select
+                      <Select
                         value={c.charge_type}
                         onChange={(e) => {
                           const v = e.target.value as PIChargeRow["charge_type"];
@@ -72,24 +76,24 @@ export function InvoiceChargeTableEditable({
                             affects_dpp: v !== "DISCOUNT" ? false : c.affects_dpp,
                           });
                         }}
-                        className="w-full max-w-[140px] px-2 py-1 border border-gray-200 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-800"
+                        className="max-w-[140px] py-1 pl-2 pr-7 text-xs"
                       >
                         {(Object.keys(PI_CHARGE_LABELS) as Array<keyof typeof PI_CHARGE_LABELS>).map((k) => (
                           <option key={k} value={k}>{PI_CHARGE_LABELS[k]}</option>
                         ))}
-                      </select>
+                      </Select>
                     </td>
                     <td className="px-3 py-2">
-                      <input
+                      <Input
                         type="text"
                         value={c.description}
                         onChange={(e) => onChargeChange(index, { description: e.target.value })}
                         placeholder="Opsional"
-                        className="w-full min-w-[120px] px-2 py-1 border border-gray-200 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-800"
+                        className="min-w-[120px] py-1 px-2 text-xs"
                       />
                     </td>
                     <td className="px-3 py-2 text-right">
-                      <input
+                      <Input
                         type="text"
                         inputMode="decimal"
                         autoComplete="off"
@@ -98,19 +102,19 @@ export function InvoiceChargeTableEditable({
                           onChargeChange(index, { amount: sanitizeChargeAmountInput(e.target.value) })
                         }
                         placeholder={c.charge_type === "DISCOUNT" ? "-50000" : "0"}
-                        className="w-28 px-2 py-1 border border-gray-200 dark:border-gray-600 rounded text-right text-xs bg-white dark:bg-gray-800 font-mono"
+                        className="w-28 py-1 px-2 text-right text-xs font-mono"
                       />
                       {c.charge_type === "DISCOUNT" ? (
                         <p className="text-[10px] text-amber-600 mt-0.5">Nilai diskon: tanda minus lalu angka</p>
                       ) : null}
                     </td>
                     <td className="px-3 py-2 text-center">
-                      <input
+                      <Input
                         type="number"
                         value={c.tax_rate}
                         disabled={c.charge_type === "DISCOUNT" && c.affects_dpp}
                         onChange={(e) => onChargeChange(index, { tax_rate: Number(e.target.value) })}
-                        className="w-14 px-1 py-1 border border-gray-200 dark:border-gray-600 rounded text-center text-xs bg-white dark:bg-gray-800 disabled:opacity-50"
+                        className="w-14 py-1 px-1 text-center text-xs"
                       />
                     </td>
                     <td className="px-3 py-2 text-center align-top">
@@ -139,18 +143,19 @@ export function InvoiceChargeTableEditable({
                         <span className="text-gray-300">—</span>
                       )}
                     </td>
-                    <td className="px-3 py-2 text-right font-medium text-gray-900 dark:text-white">
+                    <td className="px-3 py-3 text-right font-medium text-gray-900 dark:text-white">
                       {fmtCurrency(total)}
                     </td>
                     <td className="px-3 py-2 text-center">
-                      <button
-                        type="button"
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         onClick={() => onRemoveCharge(index)}
-                        className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
                         aria-label="Hapus baris"
+                        className="p-1.5 text-red-500"
                       >
                         <Trash2 className="w-4 h-4" />
-                      </button>
+                      </Button>
                     </td>
                   </tr>
                 );
