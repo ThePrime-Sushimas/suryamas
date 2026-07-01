@@ -62,6 +62,16 @@ export const apPaymentStatusMap: Record<string, SemanticColorKey> = {
   VOID:     'danger',
 }
 
+// ─── Purchase Invoice ─────────────────────────────────────────────────────────
+
+export const purchaseInvoiceStatusMap: Record<string, SemanticColorKey> = {
+  DRAFT:     'neutral',
+  SUBMITTED: 'info',
+  APPROVED:  'info',
+  REJECTED:  'danger',
+  POSTED:    'success',
+}
+
 // ─── Export ───────────────────────────────────────────────────────────────────
 
 export const statusMappings = {
@@ -70,4 +80,5 @@ export const statusMappings = {
   fixedAsset:     fixedAssetStatusMap,
   journal:        journalStatusMap,
   apPayment:      apPaymentStatusMap,
+  purchaseInvoice: purchaseInvoiceStatusMap,
 } as const

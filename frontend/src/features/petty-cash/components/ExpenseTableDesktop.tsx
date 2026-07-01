@@ -2,7 +2,7 @@ import { Trash2, Pencil, ExternalLink } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Button, StatusBadge } from '@/components/ui'
 import type { PettyCashExpense } from '../types/pettyCash.types'
-import { fmtCurrency, fmtDate, fmtQty } from '../utils/pettyCash.formatters'
+import { fmtCurrency, fmtDate, fmtQty } from '@/lib/formatters'
 
 interface ExpenseTableDesktopProps {
   expenses: PettyCashExpense[]

@@ -2,7 +2,7 @@ import { Pencil, Trash2, ExternalLink, Warehouse } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui'
 import type { PettyCashExpense } from '../types/pettyCash.types'
-import { fmtCurrency, fmtDate, fmtQty } from '../utils/pettyCash.formatters'
+import { fmtCurrency, fmtDate, fmtQty } from '@/lib/formatters'
 
 interface ExpenseCardProps {
   expense: PettyCashExpense

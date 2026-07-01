@@ -1,7 +1,7 @@
 import { Trash2 } from 'lucide-react'
 import { PettyCashStatusBadge } from './PettyCashStatusBadge'
 import type { PettyCashRequest } from '../types/pettyCash.types'
-import { fmtCurrency, fmtDate } from '../utils/pettyCash.formatters'
+import { fmtCurrency, fmtDate } from '@/lib/formatters'
 
 interface RequestTableDesktopProps {
   rows: PettyCashRequest[]

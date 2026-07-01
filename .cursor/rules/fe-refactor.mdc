@@ -1,0 +1,149 @@
+---
+description: Panduan perapihan dan migrasi komponen FE — aktif saat mengerjakan frontend
+globs: frontend/src/**
+---
+
+# Frontend Refactor Rules
+
+## Prinsip utama
+Sebelum membuat komponen, hook, atau util baru — selalu cek dulu apakah 
+sudah ada versi global/shared yang bisa dipakai.
+
+Modul referensi (sudah dimigrasi): `features/petty-cash/`, `features/purchase-invoices/`.
+
+## Cek global sebelum buat baru
+
+### Formatter
+Selalu import dari `@/lib/formatters`:
+- `fmtCurrency` — format IDR, null-safe (null → "—")
+- `fmtDate` — format tanggal id-ID, null-safe
+- `fmtDateTime` — format tanggal + jam id-ID, null-safe
+- `fmtQty` — format angka id-ID dengan desimal, null-safe
+JANGAN buat `fmtCurrency`/`fmtDate` lokal di file manapun.
+
+### UI Primitives (selalu cek `components/ui/` dulu)
+Tersedia: `Button`, `Dialog`, `Input`, `Select`, `DateInput`, 
+`Textarea`, `FormField`, `StatusBadge`, `Pagination`, 
+`TableSkeleton`, `CardSkeleton`, `FormSkeleton`
+JANGAN buat overlay modal manual (`fixed inset-0`) — pakai `Dialog`.
+JANGAN buat loading spinner manual — pakai `Button loading` prop 
+atau Skeleton primitives.
+
+### Status badge
+Pakai thin wrapper + `StatusBadge` + `statusMappings` (sudah ada: 
+`pettyCash`, `purchaseInvoice`, `journal`, `apPayment`, `fixedAsset`, `reconciliation`).
+- **Warna** → tambah di `lib/theme/statusMappings.ts` (semantic token)
+- **Label** → tetap lokal di `types/{module}.status.ts`
+- JANGAN hardcode `bg-*-100 text-*-700` di komponen badge
+- Exception: span inline one-off di page header boleh pakai config lokal 
+  (tech debt — migrasi ke `StatusBadge` saat disentuh)
+
+### Shared components (`components/shared/`)
+- `AttachmentThumbnail` — props: `filePath`, `isImage`, `bucket`, `variant`, `onClick`
+- `ProductPickerModal` — picker produk
+- `RejectReasonDialog` — **belum ada**; ikuti pola `PurchaseInvoiceRejectModal` / `PettyCashRejectModal`
+
+### Hooks global
+- `hooks/useSignedStorageUrl(path, bucket)` — signed URL; auto pass-through http(s)
+- `lib/urlFilters/useUrlFilters` — filter ↔ URL sync
+- `lib/urlFilters/useListNavigation` — list ↔ detail dengan state URL
+
+## Pola yang sudah established
+
+### Modal/Dialog
+Prefer `Dialog` compound — **bukan** `ConfirmModal` (legacy, jangan pakai di modul baru).
+```tsx
+<Dialog isOpen={open} onClose={onClose} preventClose={mutation.isPending}>
+  <Dialog.Header>Judul</Dialog.Header>
+  <Dialog.Body>...</Dialog.Body>
+  <Dialog.Footer>
+    <Button variant="secondary" onClick={onClose} disabled={isPending}>Batal</Button>
+    <Button variant="danger" loading={isPending} onClick={onConfirm}>Konfirmasi</Button>
+  </Dialog.Footer>
+</Dialog>
+```
+- Reject dengan textarea: `Dialog` + `FormField` + `Textarea`
+- Handler di page hook (PI) atau di dalam modal (PC) — keduanya OK; 
+  prefer handler di hook jika page punya banyak aksi status
+
+### Button variants
+- `primary` — aksi utama (submit, save, ajukan)
+- `secondary` — aksi sekunder (batal di footer, edit)
+- `danger` — aksi destruktif di footer dialog (hapus, tolak)
+- `ghost` — aksi minor (back, icon-only, link-style)
+- **Bukan variant baru** — pakai `className` override:
+  - Hijau (setujui) → `primary` + `className="bg-green-600 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700"`
+  - Amber (batalkan post / gabung) → `secondary` + `className="border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100 dark:bg-amber-900/20 dark:border-amber-800 dark:text-amber-200"`
+  - Danger-ghost (hapus inline di table) → `ghost` + `className="text-red-500"` atau `text-red-600`
+
+### FormField & Input
+- Field dengan label eksplisit → `FormField` + render-props `{ inputId, describedBy }`
+- Input di table cell (tanpa label) → `Input` langsung, tanpa `FormField`; 
+  boleh `className="py-1 px-2 text-xs"` untuk compact
+- **Gotcha:** `Input.rightIcon` punya `pointer-events-none` — tombol clear (X) 
+  harus di-posisikan absolute **di luar** `Input`, bukan lewat `rightIcon`
+
+### Tailwind JIT — DILARANG dynamic class
+```tsx
+// ❌ tidak aman — class tidak masuk bundle
+`border-${color}-600 text-${color}-600`
+
+// ✅ literal map di constants.ts atau types/
+const TAB_COLORS: Record<string, { active: string; inactive: string }> = { ... }
+```
+
+### Page layout
+`Layout.tsx` sudah constrain viewport (`h-[calc(100vh-4rem)]` + `overflow-auto` di `<main>`).
+- Page root: `flex h-full min-h-0 flex-col` — **bukan** `h-screen`
+- List page petty-cash: container `max-w-*` tanpa full-height — juga valid
+
+### List page — hook split (referensi PI)
+```
+useXxxFilters   → useUrlFilters + toApiQuery (jika perlu transform)
+useXxxList      → data + permissions + delete
+useXxxSelection → multi-select / merge (jika ada)
+useXxxPost      → aksi async khusus list (post/unpost, dll)
+useXxxDetail    → data + derived state
+useXxxDetailModals → modal visibility + mutation handlers
+```
+
+### File naming convention per feature
+```
+features/{module}/
+├── api/          — TanStack Query hooks + API calls (JANGAN taruh di hooks/)
+├── components/   — UI components (+ thin StatusBadge wrapper)
+├── hooks/        — custom hooks turunan (useXxxList, useXxxForm, dll)
+│   └── index.ts  — barrel export hooks public
+├── types/        — interface + status labels
+├── utils/        — pure functions domain (charges, filter URL, staging)
+└── pages/        — compose-only, target <300 LOC
+```
+
+### Import conventions
+- Prefer `@/components/ui` barrel (bukan `@/components/ui/Button` per-file)
+- Prefer `@/lib/formatters`, `@/lib/theme`, `@/hooks/useSignedStorageUrl`
+
+### Migrasi bertahap (modul baru)
+1. **Fase 0** — ekstrak duplikat ke types/utils; zero UI change
+2. **Fase 1** — pecah file >400 LOC ke komponen + hooks; pure move
+3. **Fase 2** — migrasi primitives per komponen (Button → Input → Dialog → FormField)
+4. **Fase 3** — polish: JIT classes, layout, skeleton, empty state
+
+JANGAN gabung Fase 0+1+2 dalam satu PR untuk file yang sama.
+JANGAN migrasi file besar sebelum dipecah dulu.
+
+## Known limitations — biarkan unless diminta
+- Native `<input type="checkbox">` — tidak ada Checkbox primitive
+- `EmptyState` — belum ada di design system (feature-local OK, jangan buat global ad-hoc)
+- `PageLoader` — belum ada; plain `"Loading..."` div acceptable
+- Image preview overlay manual di detail page — minor, out of scope
+
+## Yang TIDAK perlu diglobalisasi
+- Status config domain-specific (GP line status, charge labels, file type labels)
+- Form logic domain-specific (expense modes, split nota, GR selection, settlement)
+- Filter field definitions per modul (parser/merge di `utils/*Filters.url.ts` tetap lokal)
+- Staging invoice logic, charge calculation, totals per dokumen
+
+## Sebelum PR / setelah rename-move
+- `cd frontend && npx tsc --noEmit` → exit 0
+- Grep path lama: `rg "old/path" frontend/src --glob '*.{ts,tsx}'`

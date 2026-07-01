@@ -1,4 +1,4 @@
-import { fmtCurrency, fmtQty } from "../utils/purchaseInvoice.formatters";
+import { fmtCurrency, fmtQty } from "@/lib/formatters";
 import type { PurchaseInvoiceLine } from "../api/purchaseInvoices.api";
 
 interface InvoiceLineTableProps {

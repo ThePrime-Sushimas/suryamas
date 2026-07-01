@@ -1,4 +1,4 @@
-import { fmtCurrency } from "../utils/purchaseInvoice.formatters";
+import { fmtCurrency } from "@/lib/formatters";
 import { PI_CHARGE_LABELS } from "../types/purchaseInvoice.status";
 import type { PurchaseInvoiceCharge } from "../api/purchaseInvoices.api";
 

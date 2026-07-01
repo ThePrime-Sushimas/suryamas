@@ -1,6 +1,6 @@
 import { ExpenseCard } from './ExpenseCard'
 import type { PettyCashExpense } from '../types/pettyCash.types'
-import { fmtCurrency } from '../utils/pettyCash.formatters'
+import { fmtCurrency } from '@/lib/formatters'
 
 interface ExpenseCardListProps {
   expenses: PettyCashExpense[]

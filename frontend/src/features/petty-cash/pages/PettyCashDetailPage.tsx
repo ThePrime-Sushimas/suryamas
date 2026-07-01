@@ -12,7 +12,7 @@ import { PettyCashVoidModal } from '../components/PettyCashVoidModal'
 import { PrintPettyCashModal } from '../components/PrintPettyCashModal'
 import { usePettyCashDetailPage } from '../hooks/usePettyCashDetailPage'
 import { usePettyCashDetailModals } from '../hooks/usePettyCashDetailModals'
-import { fmtCurrency } from '../utils/pettyCash.formatters'
+import { fmtCurrency } from '@/lib/formatters'
 
 export default function PettyCashDetailPage() {
   const { id } = useParams<{ id: string }>()

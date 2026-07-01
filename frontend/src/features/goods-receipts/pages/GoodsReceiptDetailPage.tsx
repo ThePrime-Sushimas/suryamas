@@ -14,7 +14,6 @@ import {
   Trash2,
   FileText,
   XCircle,
-  Image,
   Info,
   Calendar,
   Building,
@@ -40,6 +39,7 @@ import { lineHasWeighing } from "../utils/weighing.util";
 import { GrSourceBadge } from "../components/GrSourceBadge";
 import { PrintGRModal } from "../components/PrintGRModal";
 import { isOrphanMarketplaceGr } from "@/lib/marketplaceSupplier";
+import { AttachmentThumbnail } from "@/components/shared/AttachmentThumbnail";
 
 const fmt = (n: number) => new Intl.NumberFormat("id-ID").format(n);
 const fmtDate = (d: string) =>
@@ -62,62 +62,6 @@ const FILE_TYPE_LABELS: Record<string, string> = {
   PHOTO_BARANG: "Foto Barang",
   OTHER: "Lainnya",
 };
-
-function AttachmentThumbnail({
-  filePath,
-  isImage,
-  onClick,
-}: {
-  filePath: string;
-  isImage: boolean;
-  onClick?: (url: string) => void;
-}) {
-  const [url, setUrl] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (isImage) {
-      api
-        .get("/storage/signed-url", {
-          params: { path: filePath, bucket: "invoices" },
-        })
-        .then((res) => setUrl(res.data.data.url))
-        .catch(() => {});
-    }
-  }, [filePath, isImage]);
-
-  if (!isImage) {
-    return (
-      <div className="w-14 h-14 flex items-center justify-center bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
-        <FileText className="w-6 h-6 text-gray-400" />
-      </div>
-    );
-  }
-
-  if (!url) {
-    return (
-      <div className="w-14 h-14 flex items-center justify-center bg-gray-100 dark:bg-gray-800 rounded-xl animate-pulse">
-        <Image className="w-6 h-6 text-gray-300" />
-      </div>
-    );
-  }
-
-  return (
-    <div
-      className="group relative cursor-zoom-in rounded-xl overflow-hidden shadow-sm"
-      onClick={() => url && onClick?.(url)}
-    >
-      <img
-        src={url}
-        alt="thumbnail"
-        className="w-14 h-14 object-cover border border-gray-200 dark:border-gray-700 transition-transform duration-300 group-hover:scale-110"
-      />
-      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-        <ExternalLink className="w-4 h-4 text-white" />
-      </div>
-    </div>
-  );
-}
-
 
 
 export default function GoodsReceiptDetailPage() {
@@ -676,6 +620,7 @@ export default function GoodsReceiptDetailPage() {
                             <AttachmentThumbnail
                               filePath={att.file_path}
                               isImage={isImage}
+                              variant="goods-receipt"
                               onClick={setPreviewUrl}
                             />
                             <div className="min-w-0">

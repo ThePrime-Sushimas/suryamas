@@ -6,7 +6,7 @@ import {
   FileText,
   ClipboardCheck,
 } from "lucide-react";
-import { fmtDateTime } from "../utils/purchaseInvoice.formatters";
+import { fmtDateTime } from "@/lib/formatters";
 import type { PurchaseInvoiceDetail } from "../api/purchaseInvoices.api";
 
 interface InvoiceAuditTimelineProps {

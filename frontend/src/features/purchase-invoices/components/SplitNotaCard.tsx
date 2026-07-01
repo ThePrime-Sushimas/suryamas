@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/Input";
 import { DateInput } from "@/components/ui/DateInput";
 import { Select } from "@/components/ui/Select";
 import { FormField } from "@/components/ui/FormField";
-import { fmtCurrency } from "../utils/purchaseInvoice.formatters";
+import { fmtCurrency } from "@/lib/formatters";
 import type { PurchaseInvoiceLine } from "../api/purchaseInvoices.api";
 import type { SplitNotaDraft } from "../types/purchaseInvoice.types";
 

@@ -1,4 +1,4 @@
-import { fmtCurrency } from "../utils/purchaseInvoice.formatters";
+import { fmtCurrency } from "@/lib/formatters";
 import type { InvoiceTotals } from "../hooks/useInvoiceTotals";
 
 interface InvoiceTotalsFooterProps {

@@ -1,6 +1,6 @@
 import { AlertCircle } from "lucide-react";
 import { Input } from "@/components/ui/Input";
-import { fmtCurrency } from "../utils/purchaseInvoice.formatters";
+import { fmtCurrency } from "@/lib/formatters";
 import type { PILine } from "../types/purchaseInvoice.types";
 
 interface InvoiceLineTableEditableProps {

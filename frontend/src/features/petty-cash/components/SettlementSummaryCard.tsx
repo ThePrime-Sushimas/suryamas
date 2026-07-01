@@ -1,5 +1,5 @@
 import { PettyCashStatusBadge } from './PettyCashStatusBadge'
-import { fmtCurrency } from '../utils/pettyCash.formatters'
+import { fmtCurrency } from '@/lib/formatters'
 import type { PettyCashExpense, PettyCashRequest } from '../types/pettyCash.types'
 
 type SettlementSummaryCardProps = {

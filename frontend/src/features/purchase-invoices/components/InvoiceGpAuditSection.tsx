@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { Package, AlertCircle, CheckCircle2, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { fmtDate, fmtQty } from "../utils/purchaseInvoice.formatters";
+import { fmtDate, fmtQty } from "@/lib/formatters";
 import {
   GP_LINE_STATUS_CONFIG,
   normalizeGpLineStatus,

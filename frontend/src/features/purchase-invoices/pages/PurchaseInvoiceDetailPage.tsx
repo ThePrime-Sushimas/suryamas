@@ -16,15 +16,15 @@ import api from "@/lib/axios";
 import { PurchaseInvoicePaymentDue } from "../components/PurchaseInvoicePaymentDue";
 import { parseApiError } from "@/lib/errorParser";
 import { Button } from "@/components/ui/Button";
-import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import { Dialog } from "@/components/ui/Dialog";
 import { PurchaseInvoiceSplitModal } from "../components/PurchaseInvoiceSplitModal";
-import { AttachmentThumbnail } from "../components/AttachmentThumbnail";
+import { AttachmentThumbnail } from "@/components/shared/AttachmentThumbnail";
 import { PurchaseInvoiceRejectModal } from "../components/PurchaseInvoiceRejectModal";
 import { InvoiceAuditTimeline } from "../components/InvoiceAuditTimeline";
 import { InvoiceGpAuditSection } from "../components/InvoiceGpAuditSection";
 import { usePurchaseInvoiceDetail } from "../hooks/usePurchaseInvoiceDetail";
 import { usePurchaseInvoiceDetailModals } from "../hooks/usePurchaseInvoiceDetailModals";
-import { fmtDate } from "../utils/purchaseInvoice.formatters";
+import { fmtDate } from "@/lib/formatters";
 import { PI_STATUS_CONFIG, FILE_TYPE_LABELS } from "../types/purchaseInvoice.status";
 import { InvoiceLineTable } from "../components/InvoiceLineTable";
 import { InvoiceChargeTable } from "../components/InvoiceChargeTable";
@@ -386,23 +386,44 @@ export default function PurchaseInvoiceDetailPage() {
       </div>
 
       {/* Modals */}
-      <ConfirmModal
+      <Dialog
         isOpen={modals.showDeleteModal}
-        onClose={() => modals.setShowDeleteModal(false)}
-        onConfirm={modals.handleDelete}
-        title="Hapus Invoice"
-        message="Yakin ingin menghapus invoice ini? Tindakan ini tidak dapat dibatalkan."
-        confirmText="Hapus"
-        variant="danger"
-        isLoading={modals.deletePI.isPending}
-      />
+        onClose={() => !modals.deletePI.isPending && modals.setShowDeleteModal(false)}
+        size="sm"
+        preventClose={modals.deletePI.isPending}
+      >
+        <Dialog.Header>Hapus Invoice</Dialog.Header>
+        <Dialog.Body>
+          <p className="text-sm text-gray-600 dark:text-gray-300">
+            Yakin ingin menghapus invoice ini? Tindakan ini tidak dapat dibatalkan.
+          </p>
+        </Dialog.Body>
+        <Dialog.Footer>
+          <Button
+            variant="secondary"
+            onClick={() => modals.setShowDeleteModal(false)}
+            disabled={modals.deletePI.isPending}
+          >
+            Batal
+          </Button>
+          <Button
+            variant="danger"
+            loading={modals.deletePI.isPending}
+            onClick={modals.handleDelete}
+          >
+            Hapus
+          </Button>
+        </Dialog.Footer>
+      </Dialog>
 
-      <ConfirmModal
+      <Dialog
         isOpen={modals.showUnpostModal}
-        onClose={() => modals.setShowUnpostModal(false)}
-        onConfirm={modals.handleUnpost}
-        title="Batalkan Post Jurnal"
-        message={
+        onClose={() => !modals.unpostPI.isPending && modals.setShowUnpostModal(false)}
+        size="sm"
+        preventClose={modals.unpostPI.isPending}
+      >
+        <Dialog.Header>Batalkan Post Jurnal</Dialog.Header>
+        <Dialog.Body>
           <div className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
             <p>
               Semua efek post jurnal akan dibatalkan untuk invoice{" "}
@@ -415,11 +436,24 @@ export default function PurchaseInvoiceDetailPage() {
               <li>Qty invoiced GR &amp; jatuh tempo PO disesuaikan ulang</li>
             </ul>
           </div>
-        }
-        confirmText="Batalkan Post"
-        variant="danger"
-        isLoading={modals.unpostPI.isPending}
-      />
+        </Dialog.Body>
+        <Dialog.Footer>
+          <Button
+            variant="secondary"
+            onClick={() => modals.setShowUnpostModal(false)}
+            disabled={modals.unpostPI.isPending}
+          >
+            Batal
+          </Button>
+          <Button
+            variant="danger"
+            loading={modals.unpostPI.isPending}
+            onClick={modals.handleUnpost}
+          >
+            Batalkan Post
+          </Button>
+        </Dialog.Footer>
+      </Dialog>
 
       <PurchaseInvoiceRejectModal
         isOpen={modals.showRejectModal}

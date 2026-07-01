@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, type Dispatch, type RefObject, type SetStateAction } from 'react'
 import { useToast } from '@/contexts/ToastContext'
 import { parseApiError } from '@/lib/errorParser'
-import api from '@/lib/axios'
+import { useSignedStorageUrl } from '@/hooks/useSignedStorageUrl'
 import { useCategories, useSubCategories } from '@/features/categories/api/categories.api'
 import type { Category, SubCategory } from '@/features/categories/types'
 import { useWarehouses } from '@/features/inventory/api/inventory.api'
@@ -66,7 +66,12 @@ export function useExpenseEditForm(
     warehouse_id: '',
   })
   const [receiptFile, setReceiptFile] = useState<File | null>(null)
-  const [receiptPreview, setReceiptPreview] = useState<string | null>(null)
+
+  const receiptPreview = useSignedStorageUrl(
+    expense?.receipt_url,
+    'buktisetoran',
+    !!expense?.receipt_url && !receiptFile,
+  )
 
   const [selectedUomId, setSelectedUomId] = useState<string>('')
   const { data: uoms = [] } = useProductUoms(expense?.product_id ?? '', false)
@@ -107,27 +112,9 @@ export function useExpenseEditForm(
         unit_price: expense.unit_price != null ? String(expense.unit_price) : '',
         warehouse_id: expense.warehouse_id ?? '',
       })
-      setReceiptPreview(expense.receipt_url ?? null)
       setReceiptFile(null)
     }
   }, [expense])
-
-  useEffect(() => {
-    if (!expense?.receipt_url) {
-      setReceiptPreview(null)
-      return
-    }
-    const raw = expense.receipt_url
-    if (raw.startsWith('http://') || raw.startsWith('https://')) {
-      setReceiptPreview(raw)
-      return
-    }
-    let cancelled = false
-    api.get('/storage/signed-url', { params: { path: raw, bucket: 'buktisetoran' } })
-      .then((res) => { if (!cancelled) setReceiptPreview(res.data?.data?.url ?? null) })
-      .catch(() => { if (!cancelled) setReceiptPreview(null) })
-    return () => { cancelled = true }
-  }, [expense?.receipt_url])
 
   const handleQtyChange = (qty: string) => {
     const qtyNum = Number(qty) || 0

@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/Button";
 import { TableSkeleton } from "@/components/ui/Skeleton";
 import { PurchaseInvoicePaymentDue } from "./PurchaseInvoicePaymentDue";
 import { InvoiceStatusBadge } from "./InvoiceStatusBadge";
-import { fmtDate, fmtCurrency } from "../utils/purchaseInvoice.formatters";
+import { fmtDate, fmtCurrency } from "@/lib/formatters";
 import type { PurchaseInvoice } from "../api/purchaseInvoices.api";
 import type { MouseEvent } from "react";
 

@@ -2,7 +2,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
-import { fmtCurrency } from "../utils/purchaseInvoice.formatters";
+import { fmtCurrency } from "@/lib/formatters";
 import { PI_CHARGE_LABELS } from "../types/purchaseInvoice.status";
 import {
   computeChargeLine,

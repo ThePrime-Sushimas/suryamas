@@ -1,4 +1,4 @@
-import { fmtCurrency } from '../utils/pettyCash.formatters'
+import { fmtCurrency } from '@/lib/formatters'
 
 type SettlementPreviewCardProps = {
   remaining: number

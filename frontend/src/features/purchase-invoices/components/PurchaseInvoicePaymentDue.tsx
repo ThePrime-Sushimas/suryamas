@@ -1,5 +1,5 @@
 import type { PiPaymentDueInfo } from "../api/purchaseInvoices.api";
-import { fmtDate } from "../utils/purchaseInvoice.formatters";
+import { fmtDate } from "@/lib/formatters";
 
 type Variant = "card" | "inline" | "table";
 

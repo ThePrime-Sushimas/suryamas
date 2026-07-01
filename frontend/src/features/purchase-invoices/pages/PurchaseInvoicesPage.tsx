@@ -2,7 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { useListNavigation } from "@/lib/urlFilters";
 import { FileText, Plus, CheckSquare } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import { Dialog } from "@/components/ui/Dialog";
 import { Pagination } from "@/components/ui/Pagination";
 import { useSuppliers } from "@/features/suppliers/api/suppliers.api";
 import { useBranches } from "@/features/branches/api/branches.api";
@@ -231,31 +231,59 @@ export default function PurchaseInvoicesPage() {
         )}
       </div>
 
-      <ConfirmModal
+      <Dialog
         isOpen={!!deleteTarget}
-        onClose={() => setDeleteTarget(null)}
-        onConfirm={handleDelete}
-        title="Hapus Invoice"
-        message={`Yakin ingin menghapus invoice "${deleteTarget?.invoice_number}"? Tindakan ini tidak dapat dibatalkan.`}
-        confirmText="Hapus"
-        variant="danger"
-        isLoading={isDeletePending}
-      />
+        onClose={() => !isDeletePending && setDeleteTarget(null)}
+        size="sm"
+        preventClose={isDeletePending}
+      >
+        <Dialog.Header>Hapus Invoice</Dialog.Header>
+        <Dialog.Body>
+          <p className="text-sm text-gray-600 dark:text-gray-300">
+            Yakin ingin menghapus invoice &quot;{deleteTarget?.invoice_number}&quot;? Tindakan ini tidak dapat dibatalkan.
+          </p>
+        </Dialog.Body>
+        <Dialog.Footer>
+          <Button
+            variant="secondary"
+            onClick={() => setDeleteTarget(null)}
+            disabled={isDeletePending}
+          >
+            Batal
+          </Button>
+          <Button variant="danger" loading={isDeletePending} onClick={handleDelete}>
+            Hapus
+          </Button>
+        </Dialog.Footer>
+      </Dialog>
 
-      <ConfirmModal
+      <Dialog
         isOpen={!!unpostTarget}
-        onClose={() => setUnpostTarget(null)}
-        onConfirm={handleUnpost}
-        title="Batalkan Post Jurnal"
-        message={
-          unpostTarget
-            ? `Batalkan post jurnal untuk "${unpostTarget.invoice_number}"? Jurnal akan dihapus permanen, biaya stok dikembalikan, dan status kembali ke Approved.`
-            : ""
-        }
-        confirmText="Batalkan Post"
-        variant="danger"
-        isLoading={isUnpostPending}
-      />
+        onClose={() => !isUnpostPending && setUnpostTarget(null)}
+        size="sm"
+        preventClose={isUnpostPending}
+      >
+        <Dialog.Header>Batalkan Post Jurnal</Dialog.Header>
+        <Dialog.Body>
+          <p className="text-sm text-gray-600 dark:text-gray-300">
+            {unpostTarget
+              ? `Batalkan post jurnal untuk "${unpostTarget.invoice_number}"? Jurnal akan dihapus permanen, biaya stok dikembalikan, dan status kembali ke Approved.`
+              : ""}
+          </p>
+        </Dialog.Body>
+        <Dialog.Footer>
+          <Button
+            variant="secondary"
+            onClick={() => setUnpostTarget(null)}
+            disabled={isUnpostPending}
+          >
+            Batal
+          </Button>
+          <Button variant="danger" loading={isUnpostPending} onClick={handleUnpost}>
+            Batalkan Post
+          </Button>
+        </Dialog.Footer>
+      </Dialog>
     </div>
   );
 }
